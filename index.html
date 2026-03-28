@@ -5,111 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="経営コンサルタント清善泰賀による個別診断予約サイト。2026年4月のスケジュール確認とオンラインセッション予約。">
     <title>予約 | 清善 泰賀 (2026)</title>
-    <style>
-        :root {
-            /* 指導2：コントラスト改善（見た目を大きく変えず、色を濃く） */
-            --primary-color: #005cc5; /* 少し濃い青 */
-            --bg-light: #f0f7ff;
-            --text-main: #222; /* 濃いグレー */
-            --text-sub: #555;  /* 読み取り可能な濃さ */
-            --border-color: #ddd;
-            --holiday-bg: #f5f5f5;
-            --full-color: #d93025; /* 濃い赤 */
-            --font-size-tiny: 0.7rem; 
-        }
-
-        body {
-            font-family: -apple-system, sans-serif;
-            line-height: 1.4;
-            color: var(--text-main);
-            background-color: #f9f9f9;
-            margin: 0;
-            padding: 15px;
-        }
-
-        .container {
-            max-width: 450px;
-            margin: 0 auto;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 2px 15px rgba(0,0,0,0.08);
-            padding: 16px;
-        }
-
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 2px solid var(--primary-color);
-            padding-bottom: 12px;
-            margin-bottom: 16px;
-        }
-        .identity h1 { font-size: 1.05rem; margin: 0; }
-        .identity p { font-size: 0.75rem; margin: 2px 0 0; color: var(--text-sub); }
-        .year-badge { background: #333; color: #fff; padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; }
-
-        /* 指導3：年月表示の追加 */
-        .calendar-month {
-            font-size: 1.1rem;
-            font-weight: bold;
-            margin-bottom: 12px;
-            padding-left: 4px;
-        }
-
-        .menu-card { 
-            background: var(--bg-light); border-left: 4px solid var(--primary-color); 
-            padding: 10px; border-radius: 4px; margin-bottom: 16px;
-        }
-        .menu-title { font-size: 0.8rem; font-weight: bold; color: var(--primary-color); }
-        .menu-price { font-size: 0.95rem; font-weight: bold; margin-top: 2px; }
-
-        .grid { 
-            display: grid; 
-            grid-template-columns: repeat(7, 1fr); 
-            border-top: 1px solid var(--border-color); 
-            border-left: 1px solid var(--border-color); 
-        }
-
-        .grid-header { 
-            background: #f8f9fa; font-size: 0.65rem; padding: 6px 0; 
-            text-align: center; border-right: 1px solid var(--border-color); 
-            border-bottom: 1px solid var(--border-color); 
-            font-weight: bold;
-        }
-        .grid-header:nth-child(1) { color: var(--full-color); }
-        .grid-header:nth-child(7) { color: var(--primary-color); }
-
-        .cell { 
-            padding: 4px 2px; 
-            border-right: 1px solid var(--border-color); 
-            border-bottom: 1px solid var(--border-color); 
-            display: flex; 
-            flex-direction: column; 
-            min-height: 65px;
-            cursor: pointer;
-        }
-
-        .cell-holiday { 
-            background: var(--holiday-bg); 
-            color: #777; /* 指導4：休日の文字を少し濃くして読みやすく */
-            pointer-events: none;
-            cursor: default;
-        }
-
-        .day-num { font-size: 0.75rem; font-weight: bold; margin-bottom: 2px; }
-
-        .slot-summary { 
-            font-size: var(--font-size-tiny); 
-            text-align: center; 
-            font-weight: bold;
-            line-height: 1.2;
-        }
-        .status-ok { color: var(--primary-color); }
-        .status-full { color: var(--full-color); }
-        .status-none { color: #888; font-weight: normal; }
-
-        footer { margin-top: 15px; text-align: center; font-size: 0.7rem; color: var(--text-sub); }
-    </style>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -130,7 +26,13 @@
     </div>
 
     <div class="grid">
-        <div class="grid-header">日</div><div class="grid-header">月</div><div class="grid-header">火</div><div class="grid-header">水</div><div class="grid-header">木</div><div class="grid-header">金</div><div class="grid-header">土</div>
+        <div class="grid-header">日</div>
+        <div class="grid-header">月</div>
+        <div class="grid-header">火</div>
+        <div class="grid-header">水</div>
+        <div class="grid-header">木</div>
+        <div class="grid-header">金</div>
+        <div class="grid-header">土</div>
 
         <div class="cell cell-holiday"><span class="day-num">29</span></div>
         <div class="cell cell-holiday"><span class="day-num">30</span></div>
