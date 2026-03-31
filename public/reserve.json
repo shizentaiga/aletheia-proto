@@ -1,0 +1,35 @@
+{
+  "owners": [
+    {
+      "id": "shizen_taiga",
+      "name": "清善 泰賀",
+      "location": "オンライン",
+      "category": "経営コンサル",
+      "url": "https://shizentaiga.com/",
+      "description": "経営の盲点を外側から観測する個別診断 【90分】",
+      "price": "49,500円",
+      "schedules": [
+        { "date": "2026-04-04", "slots": [{ "time": "10:00" }] },
+        { "date": "2026-04-18", "slots": [{ "time": "10:00" }] }
+      ]
+    },
+    {
+      "id": "livicate",
+      "name": "livicate",
+      "location": "東京都",
+      "category": "美容",
+      "url": "https://livicate.com/",
+      "description": "完全予約制：北区エリアのヘアサロン",
+      "staffs": [
+        { 
+          "name": "陽子", 
+          "schedules": [{ "date": "2026-04-01", "slots": [{ "time": "10:00", "note": "カット可" }] }] 
+        },
+        { 
+          "name": "アキラ", 
+          "schedules": [{ "date": "2026-04-01", "slots": [{ "time": "17:00-20:00" }] }] 
+        }
+      ]
+    }
+  ]
+}

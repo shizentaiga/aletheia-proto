@@ -1,0 +1,15 @@
+{
+  "name": "23_my-hono-project",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy --minify"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260329.1",
+    "wrangler": "^3.107.0"
+  },
+  "dependencies": {
+    "hono": "^4.12.9"
+  }
+}

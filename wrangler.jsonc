@@ -1,14 +1,18 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "aletheia-proto",
-  "compatibility_date": "2025-09-27",
-  "observability": {
-    "enabled": true
-  },
+  /* 【プロジェクト識別名】 Cloudflare上で表示される名前です */
+  "name": "aletheia-app",
+
+  /* 【メインプログラム】 最初に実行されるファイルの場所を指定しています */
+  "main": "src/index.tsx",
+
+  /* 【互換性の日付】 使用する機能のバージョン管理用です。
+     エラーが出た場合は、ここを過去の日付（2024-04-01など）に調整します */
+  "compatibility_date": "2024-04-01",
+
+  /* 【静的ファイルの設定】 画像、CSS、JS、JSONなど、
+     プログラムを通さず直接配信するファイルの置き場所を定義しています */
   "assets": {
-    "directory": "."
-  },
-  "compatibility_flags": [
-    "nodejs_compat"
-  ]
+    "directory": "./public", // ブラウザから見える「ルート（一番上の階層）」
+    "binding": "ASSETS"      // プログラム内部でこれらを参照するための名前
+  }
 }
