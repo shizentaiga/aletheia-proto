@@ -1,6 +1,6 @@
 {
   /* 【プロジェクト識別名】 Cloudflare上で表示される名前です */
-  "name": "aletheia-app",
+  "name": "aletheia-proto",
 
   /* 【メインプログラム】 最初に実行されるファイルの場所を指定しています */
   "main": "src/index.tsx",
