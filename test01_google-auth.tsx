@@ -26,7 +26,7 @@ const authMiddleware = (c: any, next: any) => {
   const redirectUri = `${c.env.BASE_URL}/sandbox/test01/google`;
   console.log("2. Constructed Redirect URI:", redirectUri);
 
-  const isLocalhost = constructedUri.includes("localhost");
+  const isLocalhost = redirectUri.includes("localhost");
   console.log("3. Is redirecting to Localhost?:", isLocalhost);
   // --- [診断ログ：終了] ---
 
