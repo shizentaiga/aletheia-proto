@@ -8,11 +8,6 @@
 	},
 	"d1_databases": [
 		{
-			"binding": "DB",
-			"database_name": "aletheia-db",
-			"database_id": "xxxx-xxxx-xxxx"
-		},
-		{
 			"binding": "aletheia_db",
 			"database_name": "aletheia-db",
 			"database_id": "94f653ea-a980-4b2d-82c7-fc99fca7162d"
