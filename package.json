@@ -7,7 +7,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260329.1",
-    "wrangler": "^3.107.0"
+    "wrangler": "^4.79.0"
   },
   "dependencies": {
     "@hono/oauth-providers": "^0.8.5",

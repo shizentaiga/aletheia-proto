@@ -5,8 +5,8 @@ import { DevCore } from './components/DevCore'
 import { Hero } from './components/Hero'
 
 // --- 【外部機能のインポート】 ---
-// 認証テスト用のルートを読み込みます（src/test/test20260402.tsx）
-import { testRoute } from './test/test20260402'
+// sandbox/index.ts を通じて、すべてのテストルートを一括で読み込みます
+import { sandboxApp } from './sandbox'
 
 // 環境変数の型定義（Cloudflare Workersの .dev.vars を安全に扱うため）
 type Bindings = {
@@ -20,11 +20,11 @@ const app = new Hono<{ Bindings: Bindings }>()
 // --- 【ルーティング設定：機能の割り当て】 ---
 
 /**
- * [テスト用エンドポイント]
- * http://localhost:8787/test/google にアクセスすると、Google認証が始まります。
- * testRoute側で定義された '/google' が、ここの '/test' と結合されます。
+ * [サンドボックス（実験場）]
+ * 今後は sandbox/ 内にファイルを追加するだけで、
+ * 自動的に http://localhost:8787/sandbox/test01... のようにアクセス可能になります。
  */
-app.route('/test', testRoute)
+app.route('/sandbox', sandboxApp)
 
 /**
  * [トップページ]
