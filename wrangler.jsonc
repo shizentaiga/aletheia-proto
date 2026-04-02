@@ -1,16 +1,21 @@
 {
-  "name": "aletheia-app",
-  "main": "src/index.tsx",
-  "compatibility_date": "2024-04-01",
-  "assets": {
-    "directory": "./public",
-    "binding": "ASSETS"
-  },
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "aletheia-db",
-      "database_id": "xxxx-xxxx-xxxx"
-    }
-  ]
+	"name": "aletheia-app",
+	"main": "src/index.tsx",
+	"compatibility_date": "2024-04-01",
+	"assets": {
+		"directory": "./public",
+		"binding": "ASSETS"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "aletheia-db",
+			"database_id": "xxxx-xxxx-xxxx"
+		},
+		{
+			"binding": "aletheia_db",
+			"database_name": "aletheia-db",
+			"database_id": "94f653ea-a980-4b2d-82c7-fc99fca7162d"
+		}
+	]
 }
