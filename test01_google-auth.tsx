@@ -18,25 +18,38 @@ export const test01 = new Hono<{ Bindings: Bindings }>()
 // ここで「門番」の設定を一括で行います。
 // 複数のルートに跨って環境変数を確認し、Googleとの通信準備を整えます。
 const authMiddleware = (c: any, next: any) => {
+  // 1. 環境変数の取得状況を厳密にチェック
+  const rawBaseUrl = c.env.BASE_URL;
+  const clientId = c.env.GOOGLE_CLIENT_ID;
+
   // --- [診断ログ：開始] ---
-  console.log("--- Auth Environment Diagnosis ---");
-  console.log("1. Raw BASE_URL from Env:", `"${c.env.BASE_URL}"`); 
+  console.log("--- [DEBUG] Auth Middleware Start ---");
+  console.log("A. Raw BASE_URL from Env:", rawBaseUrl ? `"${rawBaseUrl}"` : "MISSING (undefined)");
+  console.log("B. Client ID Status:", clientId ? "OK" : "MISSING");
+  
+  // もし BASE_URL が取れていないなら、ここで明確にエラーを出す（原因の特定を早める）
+  if (!rawBaseUrl || rawBaseUrl === "BASE_URL_IS_EMPTY") {
+    console.error("❌ ERROR: BASE_URL is not defined in environment variables!");
+    return c.text("Configuration Error: BASE_URL is missing. Please check wrangler.json and Cloudflare settings.", 500);
+  }
 
-  // 環境変数からベースURLを取得し、末尾のパスを繋げる
-  const redirectUri = `${c.env.BASE_URL}/sandbox/test01/google`;
-  console.log("2. Constructed Redirect URI:", redirectUri);
+  // 2. 組み立てたURLをログに出す
+  const redirectUri = `${rawBaseUrl}/sandbox/test01/google`;
+  console.log("C. Final Redirect URI to Google:", redirectUri);
 
-  const isLocalhost = redirectUri.includes("localhost");
-  console.log("3. Is redirecting to Localhost?:", isLocalhost);
-  // --- [診断ログ：終了] ---
+  // 3. 実行前の最終確認
+  if (redirectUri.includes("localhost") && !rawBaseUrl.includes("localhost")) {
+    console.warn("⚠️ WARNING: Redirect URI contains localhost unexpectedly!");
+  }
+  console.log("--- [DEBUG] Auth Middleware End ---");
 
   return googleAuth({
-    client_id: c.env.GOOGLE_CLIENT_ID,
+    client_id: clientId,
     client_secret: c.env.GOOGLE_CLIENT_SECRET,
     scope: ['openid', 'email', 'profile'],
-    redirect_uri: redirectUri, 
-  })(c, next)
-}
+    redirect_uri: redirectUri,
+  })(c, next);
+};
 
 // --- A. 認証開始地点 ---
 // アクセス先： http://localhost:8787/sandbox/test01/login
