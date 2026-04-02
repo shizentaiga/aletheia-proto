@@ -18,12 +18,17 @@ export const test01 = new Hono<{ Bindings: Bindings }>()
 // ここで「門番」の設定を一括で行います。
 // 複数のルートに跨って環境変数を確認し、Googleとの通信準備を整えます。
 const authMiddleware = (c: any, next: any) => {
-  // --- デバッグ用：今、プログラムが認識しているURLを表示 ---
-  console.log("Current BASE_URL in Env:", c.env.BASE_URL);  // debug用
+  // --- [診断ログ：開始] ---
+  console.log("--- Auth Environment Diagnosis ---");
+  console.log("1. Raw BASE_URL from Env:", `"${c.env.BASE_URL}"`); 
 
   // 環境変数からベースURLを取得し、末尾のパスを繋げる
   const redirectUri = `${c.env.BASE_URL}/sandbox/test01/google`;
-  console.log("Constructed Redirect URI:", redirectUri);  // debug用
+  console.log("2. Constructed Redirect URI:", redirectUri);
+
+  const isLocalhost = constructedUri.includes("localhost");
+  console.log("3. Is redirecting to Localhost?:", isLocalhost);
+  // --- [診断ログ：終了] ---
 
   return googleAuth({
     client_id: c.env.GOOGLE_CLIENT_ID,
