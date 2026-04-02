@@ -1,33 +1,42 @@
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono'
-/* 【部品の読み込み】 全体の枠組み（Layout）と、中身の機能（DevCore）を呼び出します */
 import { Layout } from './components/Layout'
 import { DevCore } from './components/DevCore'
 import { Hero } from './components/Hero'
 
-/* 【アプリの初期化】 HonoというWebサーバーの機能を起動します */
-const app = new Hono()
+// --- 【外部機能のインポート】 ---
+// 認証テスト用のルートを読み込みます（src/test/test20260402.tsx）
+import { testRoute } from './test/test20260402'
+
+// 環境変数の型定義（Cloudflare Workersの .dev.vars を安全に扱うため）
+type Bindings = {
+  GOOGLE_CLIENT_ID: string
+  GOOGLE_CLIENT_SECRET: string
+}
+
+/* 【アプリの初期化】 Honoを起動し、環境変数の型を適用します */
+const app = new Hono<{ Bindings: Bindings }>()
+
+// --- 【ルーティング設定：機能の割り当て】 ---
 
 /**
- * 【静的ファイルの扱いについて】
- * CloudflareのAssets機能により、/public 内のファイル（style.css, reserve.json等）は
- * プログラムを介さず直接ブラウザへ配信されます。
- * そのため、ここで特別な配信設定を書く必要はありません。
+ * [テスト用エンドポイント]
+ * http://localhost:8787/test/google にアクセスすると、Google認証が始まります。
+ * testRoute側で定義された '/google' が、ここの '/test' と結合されます。
  */
+app.route('/test', testRoute)
 
-/* 【ルート設定】 サイトのトップページ（ / ）にアクセスした時の動きを定義します */
+/**
+ * [トップページ]
+ */
 app.get('/', (c) => {
   return c.html(
-    /* 【画面の組み立て】 
-      1. <Layout> で共通のヘッダーやCSS読み込みを準備し、
-      2. その中に <DevCore />（カレンダーや検索窓）をはめ込んで表示します。
-    */
     <Layout>
-      <Hero />    {/* ← ここに追加！検索窓を表示させます */}
-      <DevCore /> {/* ← その下にメイン機能を表示させます */}
+      <Hero />
+      <DevCore />
     </Layout>
   )
 })
 
-/* 【書き出し】 この設定をCloudflare Workersへ渡して実行させます */
+/* 【書き出し】 Cloudflare Workersへ設定を渡します */
 export default app
