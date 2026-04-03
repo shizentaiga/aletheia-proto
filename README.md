@@ -3,12 +3,12 @@
 ## 0. ドキュメント体系（目次）
 プロジェクトの詳細については、以下の各ドキュメントを参照してください。初めての方は **01** から順に確認することをお勧めします。
 
-* [**01_Overview (全体像)**](./z_docs/01_overview.md) ：プロジェクトの目的、サービス概要
-* [**02_Architecture (詳細設計)**](./z_docs/02_architecture.md) ：システム構成、React/Hono/D1の連携
-* [**03_Database_Schema (データベース)**](./z_docs/03_database_schema.md) ：データ定義、リレーション
-* [**04_Service_Category (サービス設計)**](./z_docs/04_service_category.md) ：カテゴリ分類、スモールスタート戦略
-* [**11_Technical_Notes (技術メモ)**](./z_docs/11_technical_notes.md) ：開発中の気づき、実装のヒント
-* [**21_Setup_Guide (構築手順)**](./z_docs/21_setup_guide.md) ：環境構築・デプロイ手順
+* [**01_Overview (全体像)**](./docs/01_overview.md) ：プロジェクトの目的、サービス概要
+* [**02_Architecture (詳細設計)**](./docs/02_architecture.md) ：システム構成、React/Hono/D1の連携
+* [**03_Database_Schema (データベース)**](./docs/03_database_schema.md) ：データ定義、リレーション
+* [**04_Service_Category (サービス設計)**](./docs/04_service_category.md) ：カテゴリ分類、スモールスタート戦略
+* [**11_Technical_Notes (技術メモ)**](./docs/11_technical_notes.md) ：開発中の気づき、実装のヒント
+* [**21_Setup_Guide (構築手順)**](./docs/21_setup_guide.md) ：環境構築・デプロイ手順
 
 ---
 
