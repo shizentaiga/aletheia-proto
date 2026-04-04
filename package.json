@@ -1,12 +1,12 @@
 {
-  "name": "23_my-hono-project",
+  "name": "aletheia-proto",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260329.1",
+    "@cloudflare/workers-types": "^4.20260404.1",
     "wrangler": "^4.79.0"
   },
   "dependencies": {
