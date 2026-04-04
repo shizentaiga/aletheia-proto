@@ -7,6 +7,7 @@
 # ソースから生成可能なファイルは、リポジトリを重くするため同期しません
 dist/
 lambda.zip
+*.tsbuildinfo
 
 # --- 2. 開発ツール設定 (Editor / IDE) ---
 # 開発者個人のエディタ設定などは共有せず、各自の環境に委ねます
@@ -18,6 +19,7 @@ lambda.zip
 .idea/workspace.xml
 .idea/usage.statistics.xml
 .idea/shelf
+.mf/          # Miniflare（ローカルエミュレータ）のデータ保存先
 
 # --- 3. 外部ライブラリ (Dependencies) ---
 # 重要：巨大なファイル群です。package.jsonがあれば再現可能なため同期厳禁
@@ -28,6 +30,7 @@ node_modules/
 .env
 .env.production
 .dev.vars    # Cloudflare Workers用のローカル秘密鍵
+env*.local    # ローカル専用の環境変数ファイルを網羅
 
 # --- 5. ログ・一時ファイル (Logs) ---
 # 開発中のエラーログなどは、リポジトリを汚すため除外します
@@ -42,7 +45,13 @@ lerna-debug.log*
 # --- 6. Cloudflare / Wrangler 固有 ---
 # ローカル開発時のキャッシュや一時的なデータです
 .wrangler/   # wranglerツールが使用するキャッシュ（同期不要）
+.mf/           # ローカルDBの実体データが含まれるため必須
 
 # --- 7. その他 (Misc) ---
 .DS_Store    # Macが自動生成する表示設定ファイル
 .pnpm-debug.log*    # PNPM使用時のデバッグ用ログファイル
+.AppleDouble
+.LSOverride
+Icon?
+._* # Macのメタデータファイル
+
