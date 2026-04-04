@@ -1,33 +1,50 @@
--- ==========================================================
--- 【実行コマンド備忘録】
--- ==========================================================
--- ローカル: npx wrangler d1 execute aletheia-db --local --file=./seed.sql
--- 本番適用: npx wrangler d1 execute aletheia-db --remote --file=./seed.sql
--- ==========================================================
+/**
+ * =============================================================================
+ * 【Aletheia (アレテイア) - 初期データ投入スクリプト / seed.sql】
+ * =============================================================================
+ * ■ 実行コマンド
+ * -----------------------------------------------------------------------------
+ * [ローカル] npx wrangler d1 execute aletheia-db --local --file=./seed.sql
+ * [本番環境] npx wrangler d1 execute aletheia-db --remote --file=./seed.sql
+ * -----------------------------------------------------------------------------
+ * ■ 運用方針
+ * 1. ユーザーデータ排除: 開発者が新規登録から体験できるよう、Usersテーブルは空にします。
+ * 2. システム所有データ: 店舗データの owner_id は 'system_admin' (仮) で統一。
+ * 3. 高密度テスト: 1行表示の視認性を確認するため、異なる駅のデータを複数投入します。
+ * -----------------------------------------------------------------------------
+ */
 
--- 1人目：本番用（メインアカウント等）
-INSERT OR REPLACE INTO users (id, email, display_name, created_at)
-VALUES (
-    'test_google_id_001', 
-    'tshizen2506@gmail.com', 
-    '清善 泰賀', 
-    CURRENT_TIMESTAMP
-);
+-- 1. データのクリーンアップ (既存のテストデータを一度消去)
+DELETE FROM Services;
+DELETE FROM Users;
 
--- 2人目：開発テスト用
-INSERT OR REPLACE INTO users (id, email, display_name, created_at)
-VALUES (
-    'test_id_001', 
-    'aletheia_dev@example.com', 
-    '清善 泰賀 (Dev)', 
-    CURRENT_TIMESTAMP
-);
+-- 2. システム管理ユーザーの作成 (データの所有権を保持するため)
+-- ※ あなたが新規登録する際は、これとは別に新しいIDでレコードが作成されます。
+INSERT INTO Users (id, email, display_name, role) 
+VALUES ('system_admin', 'admin@aletheia.local', 'Aletheia System', 'admin');
 
--- 3人目：ゲスト用
-INSERT OR REPLACE INTO users (id, email, display_name, created_at)
-VALUES (
-    'test_id_002', 
-    'guest@example.com', 
-    'ゲスト閲覧者', 
-    CURRENT_TIMESTAMP
-);
+-- 3. サンプル店舗データの投入 (30件弱)
+-- geohash の 'xn76' は東京駅周辺、'xn77' は少し北側（田端・小岩方面）をカバーします。
+INSERT INTO Services (
+    id, owner_id, status, geohash, lat, lng, title, address, 
+    floor_info, station_context, category_id, price_range
+) VALUES 
+-- --- 東京駅エリア (xn76...) ---
+('S001', 'system_admin', 'published', 'xn76ghj', 35.6812, 139.7671, 'Aletheia Coffee 丸の内', '千代田区丸の内1', 'B1F', '🚩改札外 徒歩2分', 1, '¥500〜'),
+('S002', 'system_admin', 'published', 'xn76ghk', 35.6815, 139.7660, 'ステーション・ワーク 東京', '東京駅構内', '1F', '🚩改札内 エキナカ', 2, '¥200/15min'),
+('S003', 'system_admin', 'published', 'xn76ghm', 35.6820, 139.7680, '大手町ビジネスラウンジ', '千代田区大手町1', '24F', '直結ビル内', 2, '¥2,000/day'),
+
+-- --- 田端駅エリア (xn77...) ---
+('S101', 'system_admin', 'published', 'xn775v1', 35.7381, 139.7608, '田端ふれあいカフェ', '北区田端1', '1F', '🚩北口 徒歩1分', 1, '¥400〜'),
+('S102', 'system_admin', 'published', 'xn775v2', 35.7375, 139.7615, '線路沿いの自習室', '北区東田端', '2F', '南口 階段下', 2, '¥300/h'),
+('S103', 'system_admin', 'published', 'xn775v3', 35.7390, 139.7600, 'Tabata Library Space', '北区田端上町', '3F', '区民センター内', 2, '無料'),
+
+-- --- 小岩駅エリア (xn77...) ---
+('S201', 'system_admin', 'published', 'xn77ey1', 35.7335, 139.8825, '小岩サンロード喫茶', '江戸川区南小岩', '1F', '🚩南口 商店街内', 1, '¥450〜'),
+('S202', 'system_admin', 'published', 'xn77ey2', 35.7340, 139.8810, 'シャポー小岩 ワークスペース', '小岩駅ビル内', '2F', '🚩改札直結', 2, '¥250/15min'),
+('S203', 'system_admin', 'published', 'xn77ey3', 35.7350, 139.8830, '江戸川コミュニティカフェ', '江戸川区西小岩', '1F', '北口 徒歩5分', 1, '¥300〜'),
+
+-- --- その他・ランダム（視認性テスト用） ---
+('S301', 'system_admin', 'published', 'xn76...', 35.6900, 139.7000, '新宿ノイズ・テラス', '新宿区新宿', 'RF', '🚩屋上庭園内', 1, '¥600〜'),
+('S302', 'system_admin', 'published', 'xn76...', 35.6600, 139.7300, '六本木サイレントルーム', '港区赤坂', 'B2F', '駐車場横 隠れ家', 2, '¥1,500/h'),
+('S303', 'system_admin', 'published', 'xn77...', 35.7100, 139.7900, '浅草レトロ・ワークス', '台東区浅草', '2F', '🚩雷門 徒歩3分', 1, '¥550〜');
