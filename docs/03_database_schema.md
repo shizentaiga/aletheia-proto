@@ -2,62 +2,68 @@
 
 ## 1. データの役割と設計思想
 Aletheiaのデータベースは、単なる記録場所ではなく、**「信頼」と「偶然の出会い」を支えるインフラ**として設計されています。
-複雑な構造を避け、応答速度を最優先（初期は正規化を抑制）することで、ストレスのないユーザー体験を提供します。
+応答速度を最優先し、複雑な結合を避けるため適度に非正規化を許容します。
 
 * **インフラ**: SQLite (Cloudflare D1)
 * **共通仕様**: 全テーブルに `created_at`, `updated_at` を標準装備。
+* **ID体系**: 連番（AUTOINCREMENT）を廃止し、時系列ソート可能かつ推測困難な **`ULID`** を採用。
 
 ---
 
 ## 2. 主要データの定義と実装仕様
 
-### ① サービス情報 (Services)
-誰が、どのような価値を提供しているかを管理します。
-* **ビジネス上の意味**: 
-    - 外部サイト（アパレル等）へのリンクを保持し、在庫リスクを負わずに集客力を確保。
-    - `owner_google_id` を用意し、将来の認証移行への接合部を確保。
+### ① ユーザー情報 (Users)
+将来の完全自社認証移行と、事業資産としての顧客リストを管理します。
 * **実装定義**:
-    - `id` (PK): サービス固有ID
+    - `id` (PK/TEXT): 内部管理用ID (**ULID**)
+    - `google_sub` (TEXT, UNIQUE): Google認証の一意識別子
+    - `display_name` (TEXT): 表示名
+    - `avatar_url` (TEXT): プロフィール画像URL (外部参照)
+    - `role` (TEXT): 権限 (admin / owner / user)
+
+### ② サービス情報 (Services)
+「誰が」「どこで」価値を提供しているかを管理します。
+* **ビジネス上の意味**: 
+    - Geohashによる高速な近傍検索を実現。
+    - `owner_id` により、Usersテーブルとリレーションを形成。
+* **実装定義**:
+    - `id` (PK/TEXT): サービス固有ID (**ULID**)
+    - `owner_id` (FK/TEXT): Users.id と紐付け
     - `category_id` (INT): カテゴリ分類
-    - `title` (TEXT): サービス名称
-    - `description` (TEXT): 詳細説明
-    - `price` (INT): 価格
-    - `owner_google_id` (TEXT, NULL許容): 運営・所有者識別用
+    - `geohash` (TEXT): **空間インデックス** (前方一致検索用 6〜8桁)
+    - `lat` / `lng` (REAL): 緯度・経度 (地図表示・距離計算用)
+    - `title` (TEXT) / `description` (TEXT)
     - `external_url` (TEXT): 外部誘導先URL
+    - `status` (TEXT): 公開状態 (draft / published / private)
 
-### ② 予約・時間枠 (Schedules)
+### ③ 予約・時間枠 (Schedules)
 サービス提供者の「時間」という在庫を管理します。
-* **ビジネス上の意味**: 
-    - カレンダー形式での予約を可能にし、「今、何ができるか」を可視化。
-    - 二重予約を防ぎ、個人セラピストやコーチが安心して利用できる信頼基盤を構築。
 * **実装定義**:
-    - `id` (PK): 枠固有ID
-    - `service_id` (FK): 紐付くサービスID
-    - `start_datetime` (DATETIME): 開始日時
-    - `end_datetime` (DATETIME): 終了日時
-    - `is_booked` (BOOLEAN): 予約済みフラグ（1:済み / 0:空き）
+    - `id` (PK/TEXT): 枠固有ID (**ULID**)
+    - `service_id` (FK/TEXT): Services.id と紐付け
+    - `start_datetime` / `end_datetime` (DATETIME)
+    - `is_booked` (BOOLEAN): 予約済みフラグ
+    - `reserved_by` (FK/TEXT, NULL許容): 予約した Users.id
+    - `stripe_payment_id` (TEXT, NULL許容): 決済照合用ID
 
-### ③ 活動ログ (Logs)
-ユーザーの興味（閲覧・クリック）を記録し、リコメンドの源泉とします。
-* **ビジネス上の意味**: 
-    - 数学的な「近傍（感性が似ている人）」を導き出し、新しい出会いを創出。
-    - 個人の行動履歴自体は非公開とし、統計的な「共鳴」の提示にのみ使用。
+### ④ 活動ログ (Logs)
+「共鳴」を導き出すための、非公開の行動履歴です。
 * **実装定義**:
-    - `id` (PK): ログ固有ID
-    - `service_id` (FK): 対象サービスID
-    - `action_type` (TEXT): アクション種別（view / click）
+    - `id` (PK/TEXT): ログ固有ID
+    - `user_id` (FK/TEXT): アクションを実行した Users.id
+    - `service_id` (FK/TEXT): 対象サービスID
+    - `action_type` (TEXT): view / click
     - `timestamp` (DATETIME): 発生時刻
 
 ---
 
 ## 3. 安全性と透明性
-* **データの所有権**: ユーザー自身のデータは、いつでも持ち出せる（CSV等）透明な運用を目指します。
-* **プライバシー**: 行動履歴は統計処理にのみ使用され、第三者へ個別の履歴が公開されることはありません。
+* **データの所有権**: ユーザー自身のデータは、いつでもCSV等でエクスポート可能な状態を維持します。
+* **プライバシー**: 行動履歴は統計処理（近傍演算）にのみ使用され、個別の履歴が第三者に公開されることはありません。
 
 ---
 
 ## 4. 検討課題（Next Actions）
-1.  **ID形式の選定**: `INTEGER AUTOINCREMENT` か、推測困難な `ULID/UUID` か。
-2.  **カテゴリ管理**: マスターをDBに持つか、コード内の定数で管理するか。
-3.  **予約排他制御**: D1のトランザクションを用いた二重予約防止の実装。
-4.  **演算最適化**: `Logs` 肥大化時の集計用中間テーブル作成タイミングの策定。
+1. **空間検索のクエリ**: D1における `LIKE 'geohash%'` のインデックス効力と速度検証。
+2. **スキーマ同期**: `src/schemas/` (Zod) と `schema.sql` の定義を厳格に一致させる。
+3. **データ消去**: ユーザー退会時における「忘れられる権利」に基づく物理削除プロトコル。
