@@ -1,6 +1,6 @@
 /**
  * =============================================================================
- * 【Aletheia - システム・エントリーポイント / index.tsx】
+ * 【  - システム・エントリーポイント / index.tsx】
  * =============================================================================
  * 役割：ルーティングの定義と、各コンポーネント（Service, UI, Types）の接合。
  * * 💡 設計思想：
@@ -22,7 +22,7 @@ import { HomeUI } from './components/Home.ui'
  * システム全体で参照されるため、一括管理することで型定義の重複を防ぎます。
  */
 type Bindings = {
-  aletheia_db: D1Database
+   _db: D1Database
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -42,7 +42,7 @@ app.get('/api/search', async (c) => {
      * 直接SQLを書かず、cafe.server.ts (Service層) に実処理を委託します。
      * これにより、DBスキーマの変更があった際も Service 層の修正だけで完結します。
      */
-    const results = await CafeServerService.searchByGeohash(c.env.aletheia_db, q);
+    const results = await CafeServerService.searchByGeohash(c.env. _db, q);
     
     // 指紋ログ: サーバー側での正常終了を確認
     console.log(`[Server:API] 検索成功: ${results.length}件`);
@@ -65,7 +65,7 @@ app.get('/api/search', async (c) => {
  */
 app.get('/', (c) => {
   // 司令塔の役割：必要なデータ（タイトル等）を UI コンポーネントに注入して HTML を返却
-  return c.html(<HomeUI title="Aletheia - 疎通確認済みモデル" />);
+  return c.html(<HomeUI title="  - 疎通確認済みモデル" />);
 });
 
 export default app

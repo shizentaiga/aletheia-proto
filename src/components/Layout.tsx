@@ -11,7 +11,7 @@ export const Layout = ({ children }: { children: any }) => (
       <meta charset="UTF-8" />
       {/* スマホ表示を最適化するための設定です */}
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-      <title>Aletheia Protocol</title>
+      <title>  Protocol</title>
       
       {/* 【デザインの核】 public/style.css を読み込みます。
           見た目を変えたい時は、このプログラムではなく .css 側を修正します。 */}
@@ -20,12 +20,12 @@ export const Layout = ({ children }: { children: any }) => (
 
     <body class="container">
       {/* --- ヘッダーエリア ---
-          サイトロゴ（Aletheia）やキャッチコピーを配置。
+          サイトロゴ（ ）やキャッチコピーを配置。
           .identity や .year-badge は style.css で装飾されています。
       */}
       <header>
         <div class="identity">
-          <h1>Aletheia</h1>
+          <h1> </h1>
           <p>つながりは偶然から</p>
         </div>
         <div class="year-badge">2026</div>
@@ -40,7 +40,7 @@ export const Layout = ({ children }: { children: any }) => (
           著作権表示などを記載。
       */}
       <footer>
-        &copy; 2026 Aletheia Protocol
+        &copy; 2026   Protocol
       </footer>
     </body>
   </html>

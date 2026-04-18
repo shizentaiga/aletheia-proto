@@ -1,4 +1,4 @@
-# Google Cloud 認証基盤設定マニュアル (Aletheia Project)
+# Google Cloud 認証基盤設定マニュアル (  Project)
 
 作成日: 2026-04-02
 用途: Googleログイン認証およびAPI利用のための基礎設定

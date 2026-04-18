@@ -1,7 +1,7 @@
 # 既存プロジェクトのSSH移行および同期トラブル解決記録
 
 ## 1. 概要
-本資料は、既存プロジェクト `aletheia-proto` の接続方式をSSHへ変更し、発生した同期エラー（[rejected]）を解消してGitHubとの完全な同期を確立した際の手順を記録したものである。
+本資料は、既存プロジェクト ` -proto` の接続方式をSSHへ変更し、発生した同期エラー（[rejected]）を解消してGitHubとの完全な同期を確立した際の手順を記録したものである。
 
 ---
 
@@ -13,7 +13,7 @@
     git remote -v
 
     # SSH形式のURLへ上書き設定
-    git remote set-url origin git@github.com:shizentaiga/aletheia-proto.git
+    git remote set-url origin git@github.com:shizentaiga/ -proto.git
 
 ### 2.2 変更内容のコミット
 ローカルで実施した修正（UIのEnterキー対応、コメント整理等）を記録。
@@ -29,7 +29,7 @@
 `git push origin main` 実行時に以下のエラーが発生。
 
     ! [rejected] main -> main (fetch first)
-    error: failed to push some refs to 'github.com:shizentaiga/aletheia-proto.git'
+    error: failed to push some refs to 'github.com:shizentaiga/ -proto.git'
 
 **原因:**  
 GitHub側（リモート）に、ローカルには存在しないコミット（履歴）が含まれていたため、整合性が取れず上書きがブロックされた。

@@ -1,11 +1,11 @@
 /**
  * =============================================================================
- * 【Aletheia (アレテイア) - 初期データ投入スクリプト / seed.sql】
+ * 【  (アレテイア) - 初期データ投入スクリプト / seed.sql】
  * =============================================================================
  * ■ 実行コマンド
  * -----------------------------------------------------------------------------
- * [ローカル] npx wrangler d1 execute aletheia-db --local --file=./seed.sql
- * [本番環境] npx wrangler d1 execute aletheia-db --remote --file=./seed.sql
+ * [ローカル] npx wrangler d1 execute  -db --local --file=./seed.sql
+ * [本番環境] npx wrangler d1 execute  -db --remote --file=./seed.sql
  * -----------------------------------------------------------------------------
  * ■ 運用方針
  * 1. ユーザーデータ排除: 開発者が新規登録から体験できるよう、Usersテーブルは空にします。
@@ -21,7 +21,7 @@ DELETE FROM Users;
 -- 2. システム管理ユーザーの作成 (データの所有権を保持するため)
 -- ※ あなたが新規登録する際は、これとは別に新しいIDでレコードが作成されます。
 INSERT INTO Users (id, email, display_name, role) 
-VALUES ('system_admin', 'admin@aletheia.local', 'Aletheia System', 'admin');
+VALUES ('system_admin', 'admin@ .local', '  System', 'admin');
 
 -- 3. サンプル店舗データの投入 (30件弱)
 -- geohash の 'xn76' は東京駅周辺、'xn77' は少し北側（田端・小岩方面）をカバーします。
@@ -30,7 +30,7 @@ INSERT INTO Services (
     floor_info, station_context, category_id, price_range
 ) VALUES 
 -- --- 東京駅エリア (xn76...) ---
-('S001', 'system_admin', 'published', 'xn76ghj', 35.6812, 139.7671, 'Aletheia Coffee 丸の内', '千代田区丸の内1', 'B1F', '🚩改札外 徒歩2分', 1, '¥500〜'),
+('S001', 'system_admin', 'published', 'xn76ghj', 35.6812, 139.7671, '  Coffee 丸の内', '千代田区丸の内1', 'B1F', '🚩改札外 徒歩2分', 1, '¥500〜'),
 ('S002', 'system_admin', 'published', 'xn76ghk', 35.6815, 139.7660, 'ステーション・ワーク 東京', '東京駅構内', '1F', '🚩改札内 エキナカ', 2, '¥200/15min'),
 ('S003', 'system_admin', 'published', 'xn76ghm', 35.6820, 139.7680, '大手町ビジネスラウンジ', '千代田区大手町1', '24F', '直結ビル内', 2, '¥2,000/day'),
 

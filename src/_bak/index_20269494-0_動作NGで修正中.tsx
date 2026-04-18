@@ -1,12 +1,12 @@
 /**
  * =============================================================================
- * 【Aletheia (アレテイア) - システム司令塔 / index.tsx】
+ * 【  (アレテイア) - システム司令塔 / index.tsx】
  * =============================================================================
  * ■ 運用コマンド・プロトコル
  * -----------------------------------------------------------------------------
  * [反映] npx wrangler deploy
  * [監視] npx wrangler tail
- * [DB操作: ローカル] npx wrangler d1 execute aletheia-db --local --file=./schema.sql
+ * [DB操作: ローカル] npx wrangler d1 execute  -db --local --file=./schema.sql
  * -----------------------------------------------------------------------------
  */
 
@@ -29,7 +29,7 @@ type Bindings = {
   SESSION_EXPIRY: string
   
   // 【重要】データベースバインディング
-  aletheia_db: D1Database 
+   _db: D1Database 
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -49,7 +49,7 @@ app.get('/api/cafes', async (c) => {
   try {
     // 監査指摘に基づき、Service層を通じて安全にデータを取得
     // ※ 内部で status='published' のフィルタが効いていることに注意
-    const cafes = await CafeService.getByGeohash(c.env.aletheia_db, prefix);
+    const cafes = await CafeService.getByGeohash(c.env. _db, prefix);
     
     // 取得結果を JSON としてブラウザに返却
     return c.json(cafes);
@@ -68,14 +68,14 @@ app.get('/api/cafes', async (c) => {
  */
 app.get('/', (c) => {
   // DBバインドの生存確認（ターミナルに表示）
-  if (!c.env.aletheia_db) {
-    console.error("❌ CRITICAL: D1 binding 'aletheia_db' is missing.");
+  if (!c.env. _db) {
+    console.error("❌ CRITICAL: D1 binding ' _db' is missing.");
   }
 
   return c.html(
     <HomeContainer 
-      title="Aletheia - つながりは偶然から" 
-      db={c.env.aletheia_db} 
+      title="  - つながりは偶然から" 
+      db={c.env. _db} 
     />
   )
 })

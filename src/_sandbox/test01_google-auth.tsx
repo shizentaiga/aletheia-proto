@@ -1,12 +1,12 @@
 /**
  * ==========================================================
- * 【Aletheia 管理用URL・コマンドメモ】
+ * 【  管理用URL・コマンドメモ】
  * ==========================================================
  * * ■ 本番環境 (Cloudflare Workers)
  * ----------------------------------------------------------
- * - TOP (開発メニュー):  https://aletheia-proto.tshizen2506.workers.dev/sandbox/
- * - Google認証テスト:    https://aletheia-proto.tshizen2506.workers.dev/sandbox/test01/login
- * - DB接続・一覧表示:    https://aletheia-proto.tshizen2506.workers.dev/sandbox/test02
+ * - TOP (開発メニュー):  https:// -proto.tshizen2506.workers.dev/sandbox/
+ * - Google認証テスト:    https:// -proto.tshizen2506.workers.dev/sandbox/test01/login
+ * - DB接続・一覧表示:    https:// -proto.tshizen2506.workers.dev/sandbox/test02
  * * ■ ローカル開発環境 (http://localhost:8787)
  * ----------------------------------------------------------
  * - Google認証テスト:    http://localhost:8787/sandbox/test01/login
@@ -19,8 +19,8 @@
  * * 【重要：監視】 npx wrangler tail
  * ⇒ 本番環境の console.log をリアルタイムで確認します。
  * 「401エラー」や「Internal Server Error」が出たら、まずこれを見る。
- * * 【DB操作：ローカル】 npx wrangler d1 execute aletheia-db --local --file=./seed.sql
- * 【DB操作：本番】     npx wrangler d1 execute aletheia-db --remote --file=./seed.sql
+ * * 【DB操作：ローカル】 npx wrangler d1 execute  -db --local --file=./seed.sql
+ * 【DB操作：本番】     npx wrangler d1 execute  -db --remote --file=./seed.sql
  * ==========================================================
  */
 
@@ -33,7 +33,7 @@ import { googleAuth } from '@hono/oauth-providers/google'
 type Bindings = {
   GOOGLE_CLIENT_ID: string
   GOOGLE_CLIENT_SECRET: string
-  aletheia_db: D1Database // 親が持っているものはここにも書く
+   _db: D1Database // 親が持っているものはここにも書く
   ENVIRONMENT?: string
   BASE_URL: string // ← 追加
 }

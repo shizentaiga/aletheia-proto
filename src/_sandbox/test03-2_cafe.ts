@@ -62,7 +62,7 @@ test03_2.get('/', (c) => {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Aletheia Cafe List</title>
+        <title>  Cafe List</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <style> .truncate-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } </style>
       </head>
@@ -107,7 +107,7 @@ test03_2.get('/', (c) => {
           </main>
 
           <footer class="p-8 text-center bg-gray-50 text-[10px] text-gray-300 tracking-tighter">
-            <p>ALETHEIA ARCHITECTURE PROTOTYPE v0.3</p>
+            <p>  ARCHITECTURE PROTOTYPE v0.3</p>
             <p class="mt-1">Filtering Logic: Nearest-First by Metric</p>
           </footer>
         </div>

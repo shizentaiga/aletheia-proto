@@ -1,6 +1,6 @@
 /**
  * =============================================================================
- * 【Aletheia (アレテイア) - ホーム画面・メインコンテナ / HomeContainer.tsx】
+ * 【  (アレテイア) - ホーム画面・メインコンテナ / HomeContainer.tsx】
  * =============================================================================
  * ■ 設計思想
  * -----------------------------------------------------------------------------
@@ -188,7 +188,7 @@ export const HomeContainer = (props: Props) => {
       {/* 【3. フッターエリア】 */}
       <footer className="py-10 text-center">
         <p className="text-[10px] text-gray-300 tracking-widest uppercase">
-          © 2026 Aletheia Project / Zen-yu
+          © 2026   Project / Zen-yu
         </p>
       </footer>
 

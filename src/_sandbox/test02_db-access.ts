@@ -1,12 +1,12 @@
 /**
  * ==========================================================
- * 【Aletheia 管理用URL・コマンドメモ】
+ * 【  管理用URL・コマンドメモ】
  * ==========================================================
  * * ■ 本番環境 (Cloudflare Workers)
  * ----------------------------------------------------------
- * - TOP (開発メニュー):  https://aletheia-proto.tshizen2506.workers.dev/sandbox/
- * - Google認証テスト:    https://aletheia-proto.tshizen2506.workers.dev/sandbox/test01/login
- * - DB接続・一覧表示:    https://aletheia-proto.tshizen2506.workers.dev/sandbox/test02
+ * - TOP (開発メニュー):  https:// -proto.tshizen2506.workers.dev/sandbox/
+ * - Google認証テスト:    https:// -proto.tshizen2506.workers.dev/sandbox/test01/login
+ * - DB接続・一覧表示:    https:// -proto.tshizen2506.workers.dev/sandbox/test02
  * * ■ ローカル開発環境 (http://localhost:8787)
  * ----------------------------------------------------------
  * - Google認証テスト:    http://localhost:8787/sandbox/test01/login
@@ -19,8 +19,8 @@
  * * 【重要：監視】 npx wrangler tail
  * ⇒ 本番環境の console.log をリアルタイムで確認します。
  * 「401エラー」や「Internal Server Error」が出たら、まずこれを見る。
- * * 【DB操作：ローカル】 npx wrangler d1 execute aletheia-db --local --file=./seed.sql
- * 【DB操作：本番】     npx wrangler d1 execute aletheia-db --remote --file=./seed.sql
+ * * 【DB操作：ローカル】 npx wrangler d1 execute  -db --local --file=./seed.sql
+ * 【DB操作：本番】     npx wrangler d1 execute  -db --remote --file=./seed.sql
  * ==========================================================
  */
 
@@ -31,7 +31,7 @@ import { Hono } from 'hono'
 // ==========================================
 // 親ファイル (sandbox/index.ts) と名前を完全に一致させます。
 type Bindings = {
-  aletheia_db: D1Database  // Cloudflare D1（本番・ローカル共通）
+   _db: D1Database  // Cloudflare D1（本番・ローカル共通）
   ENVIRONMENT?: string     // 実行環境（development / production）
 }
 
@@ -52,7 +52,7 @@ test02.get('/', async (c) => {
   try {
     // 1. データベースに対して「ユーザー全員分をちょうだい」と命令を投げます
     // ※ 接続先は設定ファイルに基づいて自動で切り替わります。
-    const { results } = await c.env.aletheia_db.prepare('SELECT * FROM users').all();
+    const { results } = await c.env. _db.prepare('SELECT * FROM users').all();
     
     // 2. 成功したら、実行環境の情報と一緒にデータを表示します
     return c.json({
@@ -85,9 +85,9 @@ test02.get('/:id', async (c) => {
   const envName = c.env.ENVIRONMENT || 'development (local)';
 
   try {
-    // 【修正箇所】DB ではなく aletheia_db を使用します
+    // 【修正箇所】DB ではなく  _db を使用します
     // データベースの中から、その「ID」に一致する人だけを1人（first）探します
-    const user = await c.env.aletheia_db.prepare('SELECT * FROM users WHERE id = ?')
+    const user = await c.env. _db.prepare('SELECT * FROM users WHERE id = ?')
       .bind(id)
       .first();
       

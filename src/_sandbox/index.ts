@@ -1,6 +1,6 @@
 /**
  * =============================================================================
- * 【Aletheia (アレテイア) - 開発実験場 (Sandbox) / _sandbox/index.ts】
+ * 【  (アレテイア) - 開発実験場 (Sandbox) / _sandbox/index.ts】
  * =============================================================================
  * ■ 役割と運用思想
  * -----------------------------------------------------------------------------
@@ -15,8 +15,8 @@
  * ⇒ GitHubへのPushだけでは Workers は更新されない。変更後は必ずこのコマンドを。
  * 【重要：監視】 npx wrangler tail
  * ⇒ 本番の console.log をリアルタイム追跡。エラー時の「第一の手がかり」。
- * 【DB操作: Local】 npx wrangler d1 execute aletheia-db --local --file=./seed.sql
- * 【DB操作: Remote】npx wrangler d1 execute aletheia-db --remote --file=./seed.sql
+ * 【DB操作: Local】 npx wrangler d1 execute  -db --local --file=./seed.sql
+ * 【DB操作: Remote】npx wrangler d1 execute  -db --remote --file=./seed.sql
  * -----------------------------------------------------------------------------
  * * ■ 現在有効なテストエンドポイント
  * -----------------------------------------------------------------------------
@@ -46,7 +46,7 @@ import { test03_3 } from './test03-3_cafe'     // 機能試作（v3: 詳細・UI
  * テスト内で使用するDBインスタンスや環境フラグを定義。
  */
 type Bindings = {
-  aletheia_db: D1Database  // Cloudflare D1
+   _db: D1Database  // Cloudflare D1
   ENVIRONMENT?: string      // 実行環境（development / production）
 }
 

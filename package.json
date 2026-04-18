@@ -1,5 +1,5 @@
 {
-  "name": "aletheia-proto",
+  "name": " -proto",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",

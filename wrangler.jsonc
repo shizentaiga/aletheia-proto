@@ -1,9 +1,9 @@
 {
-	"name": "aletheia-proto",
+	"name": " -proto",
 	"main": "src/index.tsx",
 	"compatibility_date": "2024-04-01",
 	"vars": {
-    "BASE_URL": "https://aletheia-proto.tshizen2506.workers.dev",
+    "BASE_URL": "https:// -proto.tshizen2506.workers.dev",
     "GOOGLE_CLIENT_ID": "479168082736-c0rosu4b1ptkr613g7osa8qm0a5ul3q9.apps.googleusercontent.com"
   	},
 	"assets": {
@@ -12,8 +12,8 @@
 	},
 	"d1_databases": [
 		{
-			"binding": "aletheia_db",
-			"database_name": "aletheia-db",
+			"binding": " _db",
+			"database_name": " -db",
 			"database_id": "94f653ea-a980-4b2d-82c7-fc99fca7162d"
 		}
 	]

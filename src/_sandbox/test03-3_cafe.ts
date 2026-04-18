@@ -43,18 +43,18 @@ test03_3.get('/', (c) => {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Aletheia Search Prototype</title>
+        <title>  Search Prototype</title>
         <script src="https://cdn.tailwindcss.com"></script>
         <script>
           // 【履歴スタック・ロジック】
           function updateHistory(id, name) {
             if(!id) return;
-            let history = JSON.parse(localStorage.getItem('aletheia_history') || '[]');
+            let history = JSON.parse(localStorage.getItem(' _history') || '[]');
             // 重複削除して先頭に追加
             history = history.filter(item => item.id !== id);
             history.unshift({id, name});
             // 最大5件に制限
-            localStorage.setItem('aletheia_history', JSON.stringify(history.slice(0, 5)));
+            localStorage.setItem(' _history', JSON.stringify(history.slice(0, 5)));
           }
 
           // ページ読み込み時に履歴を表示
@@ -67,7 +67,7 @@ test03_3.get('/', (c) => {
               updateHistory(currentId, currentName);
             }
 
-            const history = JSON.parse(localStorage.getItem('aletheia_history') || '[]');
+            const history = JSON.parse(localStorage.getItem(' _history') || '[]');
             const historyArea = document.getElementById('history-area');
             if(history.length > 0) {
               historyArea.innerHTML = history.map(item => 
@@ -92,7 +92,7 @@ test03_3.get('/', (c) => {
         <div class="max-w-md mx-auto min-h-screen bg-white shadow-sm">
           
           <div class="p-6 bg-gradient-to-b from-blue-600 to-blue-700 text-white">
-            <h1 class="text-2xl font-black tracking-tighter mb-4">ALETHEIA</h1>
+            <h1 class="text-2xl font-black tracking-tighter mb-4"> </h1>
             
             <div class="relative mb-4 text-gray-800">
               <input type="text" placeholder="駅名、場所を検索..." class="w-full p-4 rounded-2xl shadow-lg focus:outline-none focus:ring-2 focus:ring-yellow-400">

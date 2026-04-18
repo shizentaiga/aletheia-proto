@@ -3,7 +3,7 @@
  * 【test03: カフェ一覧表示プロトタイプ】
  * ==========================================================
  * ■ アクセスURL
- * - 本番: https://aletheia-proto.tshizen2506.workers.dev/sandbox/test03
+ * - 本番: https:// -proto.tshizen2506.workers.dev/sandbox/test03
  * - ローカル: http://localhost:8787/sandbox/test03
  * * ■ 反映コマンド
  * - npx wrangler deploy (本番反映)
@@ -41,13 +41,13 @@ test03.get('/', (c) => {
       <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Aletheia Cafe List Test</title>
+        <title>  Cafe List Test</title>
         <script src="https://cdn.tailwindcss.com"></script>
       </head>
       <body class="bg-gray-50 text-gray-900 p-4">
         <div class="max-w-md mx-auto">
           <header class="mb-6">
-            <h1 class="text-2xl font-bold border-l-4 border-blue-600 pl-3">Aletheia Cafe List</h1>
+            <h1 class="text-2xl font-bold border-l-4 border-blue-600 pl-3">  Cafe List</h1>
             <p class="text-sm text-gray-500 mt-1">小岩駅周辺 プロトタイプ v0.1</p>
           </header>
 

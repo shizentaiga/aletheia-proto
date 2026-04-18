@@ -9,7 +9,7 @@ type CafeResult = {
 };
 
 type Bindings = {
-  aletheia_db: D1Database
+   _db: D1Database
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -20,7 +20,7 @@ app.get('/api/search', async (c) => {
   const q = c.req.query('q') || 'xn76';
   
   try {
-    const { results } = await c.env.aletheia_db
+    const { results } = await c.env. _db
       .prepare("SELECT title, station_context FROM Services WHERE geohash LIKE ? LIMIT 10")
       .bind(`${q}%`)
       .all<CafeResult>(); // ここで型を適用
@@ -37,12 +37,12 @@ app.get('/', (c) => {
     <html lang="ja">
       <head>
         <meta charset="UTF-8" />
-        <title>Aletheia - 疎通確認済みモデル</title>
+        <title>  - 疎通確認済みモデル</title>
         <script src="https://cdn.tailwindcss.com"></script>
       </head>
       <body className="bg-gray-50 p-8">
         <div className="max-w-md mx-auto bg-white p-6 rounded-xl shadow-md">
-          <h1 className="text-xl font-bold mb-4">Aletheia 検索テスト</h1>
+          <h1 className="text-xl font-bold mb-4">  検索テスト</h1>
           
           <div className="flex gap-2 mb-6">
             <input 

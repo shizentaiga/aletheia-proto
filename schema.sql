@@ -1,11 +1,11 @@
 /**
  * =============================================================
- * 【Aletheia (アレテイア) - データベース物理設計 / schema.sql】
+ * 【  (アレテイア) - データベース物理設計 / schema.sql】
  * =============================================================
  * ■ 実行コマンド・プロトコル
  * -------------------------------------------------------------
- * [ローカル反映] npx wrangler d1 execute aletheia-db --local --file=./schema.sql
- * [本番環境反映] npx wrangler d1 execute aletheia-db --remote --file=./schema.sql
+ * [ローカル反映] npx wrangler d1 execute  -db --local --file=./schema.sql
+ * [本番環境反映] npx wrangler d1 execute  -db --remote --file=./schema.sql
  * * ■ 運用上の注意
  * 1. 破壊的変更: DROP TABLE を含んでいるため、実行すると既存データは消去されます。
  * 2. 開発フェーズ: 現在はプロトタイプ期のため、構造変更のたびにこのファイルを実行してリセットします。
@@ -130,7 +130,7 @@ INSERT INTO Services (
     'published', 
     'xn76ghj', 
     35.6812, 139.7671, 
-    'Aletheia Test Cafe (東京駅前)', 
+    '  Test Cafe (東京駅前)', 
     'B1F', 
     '🚩改札外 徒歩1分', 
     1

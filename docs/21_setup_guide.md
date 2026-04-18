@@ -10,7 +10,7 @@
 
 ## 2. クラウド基盤 (Cloudflare / D1)
 * **Authentication**: `npx wrangler login` でCloudflareアカウントと連携。
-* **Database**: `npx wrangler d1 create aletheia-db` でデータベースを作成し、`wrangler.jsonc` にBinding設定を記述。
+* **Database**: `npx wrangler d1 create  -db` でデータベースを作成し、`wrangler.jsonc` にBinding設定を記述。
 * **Environment**: `wrangler.jsonc` 内の `compatibility_date` を最新に設定。
 
 ## 3. CI/CD連携 (GitHub / Cloudflare Pages)
