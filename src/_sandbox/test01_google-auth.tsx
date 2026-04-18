@@ -1,114 +1,68 @@
+import { Hono } from 'hono'
+import { html } from 'hono/html'
+
+type Bindings = {
+  GOOGLE_CLIENT_ID: string
+  BASE_URL: string
+}
+
+export const test01 = new Hono<{ Bindings: Bindings }>()
+
 /**
  * ==========================================================
- * 【  管理用URL・コマンドメモ】
- * ==========================================================
- * * ■ 本番環境 (Cloudflare Workers)
- * ----------------------------------------------------------
- * - TOP (開発メニュー):  https:// -proto.tshizen2506.workers.dev/sandbox/
- * - Google認証テスト:    https:// -proto.tshizen2506.workers.dev/sandbox/test01/login
- * - DB接続・一覧表示:    https:// -proto.tshizen2506.workers.dev/sandbox/test02
- * * ■ ローカル開発環境 (http://localhost:8787)
- * ----------------------------------------------------------
- * - Google認証テスト:    http://localhost:8787/sandbox/test01/login
- * - DB接続・一覧表示:    http://localhost:8787/sandbox/test02
- * * ■ 開発・運用コマンド (ターミナル実行用)
- * ----------------------------------------------------------
- * 【重要：反映】 npx wrangler deploy
- * ⇒ GitHubへのPushだけでは本番環境(Workers)は更新されません。
- * コードや環境変数を変えたら、必ずこのコマンドで本番へ送り出すこと。
- * * 【重要：監視】 npx wrangler tail
- * ⇒ 本番環境の console.log をリアルタイムで確認します。
- * 「401エラー」や「Internal Server Error」が出たら、まずこれを見る。
- * * 【DB操作：ローカル】 npx wrangler d1 execute  -db --local --file=./seed.sql
- * 【DB操作：本番】     npx wrangler d1 execute  -db --remote --file=./seed.sql
+ * 【 Test01: Google Auth UI 疎通確認 】
  * ==========================================================
  */
 
+// --- A. ログインボタン設置画面 ---
+// http://localhost:8787/_sandbox/test01/
+test01.get('/', (c) => {
+  return c.html(html`
+    <div style="font-family: sans-serif; padding: 40px; text-align: center;">
+      <h2 style="color: #333;">ALETHEIA Auth Test</h2>
+      <p style="color: #666; margin-bottom: 30px;">
+        ボタンを押して Google 認証フロー（擬似）を開始します
+      </p>
+      
+      <a href="/_sandbox/test01/google-mock" style="
+        display: inline-flex;
+        align-items: center;
+        padding: 10px 24px;
+        background-color: #ffffff;
+        border: 1px solid #dadce0;
+        border-radius: 4px;
+        color: #3c4043;
+        text-decoration: none;
+        font-weight: 500;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+      ">
+        <img src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg" style="margin-right: 10px;">
+        Google でサインイン
+      </a>
 
-import { Hono } from 'hono'
-import { googleAuth } from '@hono/oauth-providers/google'
-
-// 1. 環境変数の型を定義
-// 親 (index.ts) と「道具箱」の中身を完全に一致させます。
-type Bindings = {
-  GOOGLE_CLIENT_ID: string
-  GOOGLE_CLIENT_SECRET: string
-   _db: D1Database // 親が持っているものはここにも書く
-  ENVIRONMENT?: string
-  BASE_URL: string // ← 追加
-}
-
-// 2. Honoのインスタンス作成（子アプリ）
-export const test01 = new Hono<{ Bindings: Bindings }>()
-
-// --- 【修正ポイント】 Google認証の設定を一箇所に集約 ---
-// ここで「門番」の設定を一括で行います。
-// 複数のルートに跨って環境変数を確認し、Googleとの通信準備を整えます。
-const authMiddleware = (c: any, next: any) => {
-  // 1. 環境変数の取得状況を厳密にチェック
-  const rawBaseUrl = c.env.BASE_URL;
-  const clientId = c.env.GOOGLE_CLIENT_ID;
-
-  // --- [診断ログ：開始] ---
-  console.log("--- [DEBUG] Auth Middleware Start ---");
-  console.log("A. Raw BASE_URL from Env:", rawBaseUrl ? `"${rawBaseUrl}"` : "MISSING (undefined)");
-  console.log("B. Client ID Status:", clientId ? "OK" : "MISSING");
-  
-  // もし BASE_URL が取れていないなら、ここで明確にエラーを出す（原因の特定を早める）
-  if (!rawBaseUrl || rawBaseUrl === "BASE_URL_IS_EMPTY") {
-    console.error("❌ ERROR: BASE_URL is not defined in environment variables!");
-    return c.text("Configuration Error: BASE_URL is missing. Please check wrangler.json and Cloudflare settings.", 500);
-  }
-
-  // 2. 組み立てたURLをログに出す
-  const redirectUri = `${rawBaseUrl}/sandbox/test01/google`;
-  console.log("C. Final Redirect URI to Google:", redirectUri);
-
-  // 3. 実行前の最終確認
-  if (redirectUri.includes("localhost") && !rawBaseUrl.includes("localhost")) {
-    console.warn("⚠️ WARNING: Redirect URI contains localhost unexpectedly!");
-  }
-  console.log("--- [DEBUG] Auth Middleware End ---");
-
-  return googleAuth({
-    client_id: clientId,
-    client_secret: c.env.GOOGLE_CLIENT_SECRET,
-    scope: ['openid', 'email', 'profile'],
-    redirect_uri: redirectUri,
-  })(c, next);
-};
-
-// --- A. 認証開始地点 ---
-// アクセス先： http://localhost:8787/sandbox/test01/login
-test01.get('/login', authMiddleware, (c) => {
-  // authMiddlewareが成功すると、自動的にGoogleのログイン画面へ飛ばされます。
-  return c.text('Redirecting to Google...')
+      <div style="margin-top: 40px; font-size: 0.8rem; color: #999;">
+        <p>※現在はリダイレクトURL制限を考慮し、<br>実際のGoogle通信を除外した「モック画面」へ遷移します。</p>
+        <p>設定完了後は <code>googleAuth()</code> ミドルウェアを適用します。</p>
+      </div>
+    </div>
+  `)
 })
 
-// --- B. 認証後の受け取り地点（コールバック） ---
-// アクセス先： http://localhost:8787/sandbox/test01/google
-test01.get('/google', authMiddleware, async (c) => {
-  console.log("--- Callback Reached ---");
-
-  // Googleから解析済みのユーザー情報を取り出します
-  const user = c.get('user-google');
-
-  if (!user) {
-    console.log("User Data Status: NOT FOUND");
-    return c.text('認証情報が取得できませんでした。', 401);
-  }
-
-  console.log("User Data Status: FOUND", user.email);
-
-  // 画面に結果を表示します
-  return c.html(`
-    <div style="padding: 20px; font-family: sans-serif; line-height: 1.6;">
-      <h1 style="color: #4285F4;">✅ Google認証に成功しました！</h1>
-      <p>取得したメールアドレス: <strong>${user.email}</strong></p>
+// --- B. 認証成功の擬似画面（モック） ---
+test01.get('/google-mock', (c) => {
+  return c.html(html`
+    <div style="font-family: sans-serif; padding: 40px;">
+      <h1 style="color: #4285F4;">✅ 認証フローの疎通成功</h1>
+      <p>この画面が表示されていれば、<strong>サンドボックス内のルーティング</strong>は正常です。</p>
       <hr>
-      <p style="font-size: 0.9em; color: #666;">（デバッグ用：取得データの全容）</p>
-      <pre style="background: #f4f4f4; padding: 10px; border-radius: 5px; overflow: auto;">${JSON.stringify(user, null, 2)}</pre>
-      <p><a href="/sandbox/test02">→ 次はDBのデータを確認する</a></p>
+      <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 4px solid #4285F4;">
+        <p><strong>Next Step:</strong></p>
+        <ol>
+          <li>Google Cloud Console でリダイレクトURLを許可</li>
+          <li><code>BASE_URL</code> 環境変数を <code>wrangler.jsonc</code> に設定</li>
+          <li>実際の <code>googleAuth</code> ミドルウェアを有効化</li>
+        </ol>
+      </div>
     </div>
-  `);
+  `)
 })

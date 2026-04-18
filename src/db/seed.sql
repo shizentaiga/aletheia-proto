@@ -20,15 +20,15 @@ DELETE FROM services;
 DELETE FROM users;
 
 -- 2. システム管理ユーザーの作成
-INSERT INTO users (id, email, display_name, role) 
+INSERT INTO users (user_id, email, display_name, role) 
 VALUES ('system_admin', 'admin@aletheia.local', 'ALETHEIA System', 'admin');
 
 -- 3. サンプル店舗データの投入 (Discovery層のテスト用)
 -- geohash: xn76 (東京周辺), xn77 (田端・小岩周辺)
 INSERT INTO services (
-    id, owner_id, status, geohash, lat, lng, title, address, 
+    service_id, owner_id, status, geohash, lat, lng, title, address, 
     floor_info, station_context, category_id, price_range
-) VALUES 
+) VALUES  
 -- --- 東京駅エリア (xn76...) ---
 ('S001', 'system_admin', 'published', 'xn76ghj', 35.6812, 139.7671, '☕ Coffee 丸の内', '千代田区丸の内1', 'B1F', '🚩改札外 徒歩2分', 1, '¥500〜'),
 ('S002', 'system_admin', 'published', 'xn76ghk', 35.6815, 139.7660, '💻 Station Work Tokyo', '東京駅構内', '1F', '🚩改札内 エキナカ', 2, '¥200/15min'),
@@ -52,8 +52,8 @@ INSERT INTO services (
 -- 4. 予約枠サンプルデータの投入 (Trust層のテスト用)
 -- 「Coffee 丸の内 (S001)」に対する予約サンプル
 INSERT INTO slots (
-    id, service_id, booking_status, start_at_unix, end_at_unix, 
+    slot_id, service_id, booking_status, start_at_unix, end_at_unix, 
     actual_title, actual_price, created_at
-) VALUES 
+) VALUES  
 ('SLOT001', 'S001', 'booked', 1713438000, 1713441600, '☕ Coffee 丸の内', '¥500 (ブレンド)', '2026-04-18 10:00:00'),
 ('SLOT002', 'S001', 'pending', 1713445200, 1713448800, '☕ Coffee 丸の内', '¥500 (ブレンド)', '2026-04-18 11:00:00');
