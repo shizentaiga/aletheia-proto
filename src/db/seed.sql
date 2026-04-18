@@ -1,0 +1,59 @@
+/**
+ * =============================================================================
+ * 【 ALETHEIA - Initial Seed Data / seed.sql 】
+ * =============================================================================
+ * ■ 実行コマンド
+ * -----------------------------------------------------------------------------
+ * [LOCAL]  npx wrangler d1 execute ALETHEIA_PROTO_DB --local  --file=./src/db/seed.sql
+ * [REMOTE] npx wrangler d1 execute ALETHEIA_PROTO_DB --remote --file=./src/db/seed.sql
+ * -----------------------------------------------------------------------------
+ * ■ 運用方針
+ * 1. ユーザーデータ排除: 開発者が新規登録を体験できるよう、一般Usersは空。
+ * 2. システム所有データ: 店舗データの owner_id は 'system_admin' で統一。
+ * 3. 疎通・視認性テスト: 1行表示の密度と、予約データの不変性(Actual値)を検証。
+ * =============================================================================
+ */
+
+-- 1. データのクリーンアップ (依存関係により slots から削除)
+DELETE FROM slots;
+DELETE FROM services;
+DELETE FROM users;
+
+-- 2. システム管理ユーザーの作成
+INSERT INTO users (id, email, display_name, role) 
+VALUES ('system_admin', 'admin@aletheia.local', 'ALETHEIA System', 'admin');
+
+-- 3. サンプル店舗データの投入 (Discovery層のテスト用)
+-- geohash: xn76 (東京周辺), xn77 (田端・小岩周辺)
+INSERT INTO services (
+    id, owner_id, status, geohash, lat, lng, title, address, 
+    floor_info, station_context, category_id, price_range
+) VALUES 
+-- --- 東京駅エリア (xn76...) ---
+('S001', 'system_admin', 'published', 'xn76ghj', 35.6812, 139.7671, '☕ Coffee 丸の内', '千代田区丸の内1', 'B1F', '🚩改札外 徒歩2分', 1, '¥500〜'),
+('S002', 'system_admin', 'published', 'xn76ghk', 35.6815, 139.7660, '💻 Station Work Tokyo', '東京駅構内', '1F', '🚩改札内 エキナカ', 2, '¥200/15min'),
+('S003', 'system_admin', 'published', 'xn76ghm', 35.6820, 139.7680, '🏢 大手町ビジネスラウンジ', '千代田区大手町1', '24F', '直結ビル内', 2, '¥2,000/day'),
+
+-- --- 田端駅エリア (xn77...) ---
+('S101', 'system_admin', 'published', 'xn775v1', 35.7381, 139.7608, '☕ 田端ふれあいカフェ', '北区田端1', '1F', '🚩北口 徒歩1分', 1, '¥400〜'),
+('S102', 'system_admin', 'published', 'xn775v2', 35.7375, 139.7615, '📖 線路沿いの自習室', '北区東田端', '2F', '南口 階段下', 2, '¥300/h'),
+('S103', 'system_admin', 'published', 'xn775v3', 35.7390, 139.7600, '🏛️ Tabata Library Space', '北区田端上町', '3F', '区民センター内', 2, '無料'),
+
+-- --- 小岩駅エリア (xn77...) ---
+('S201', 'system_admin', 'published', 'xn77ey1', 35.7335, 139.8825, '☕ 小岩サンロード喫茶', '江戸川区南小岩', '1F', '🚩南口 商店街内', 1, '¥450〜'),
+('S202', 'system_admin', 'published', 'xn77ey2', 35.7340, 139.8810, '💻 シャポー小岩 ワーク', '小岩駅ビル内', '2F', '🚩改札直結', 2, '¥250/15min'),
+('S203', 'system_admin', 'published', 'xn77ey3', 35.7350, 139.8830, '☕ 江戸川コミュニティカフェ', '江戸川区西小岩', '1F', '北口 徒歩5分', 1, '¥300〜'),
+
+-- --- その他エリア（視認性テスト用） ---
+('S301', 'system_admin', 'published', 'xn76u4x', 35.6900, 139.7000, '🌿 新宿ノイズ・テラス', '新宿区新宿', 'RF', '🚩屋上庭園内', 1, '¥600〜'),
+('S302', 'system_admin', 'published', 'xn76u4y', 35.6600, 139.7300, '🤫 六本木サイレントルーム', '港区赤坂', 'B2F', '駐車場横 隠れ家', 2, '¥1,500/h'),
+('S303', 'system_admin', 'published', 'xn776ez', 35.7100, 139.7900, '🏮 浅草レトロ・ワークス', '台東区浅草', '2F', '🚩雷門 徒歩3分', 1, '¥550〜');
+
+-- 4. 予約枠サンプルデータの投入 (Trust層のテスト用)
+-- 「Coffee 丸の内 (S001)」に対する予約サンプル
+INSERT INTO slots (
+    id, service_id, booking_status, start_at_unix, end_at_unix, 
+    actual_title, actual_price, created_at
+) VALUES 
+('SLOT001', 'S001', 'booked', 1713438000, 1713441600, '☕ Coffee 丸の内', '¥500 (ブレンド)', '2026-04-18 10:00:00'),
+('SLOT002', 'S001', 'pending', 1713445200, 1713448800, '☕ Coffee 丸の内', '¥500 (ブレンド)', '2026-04-18 11:00:00');

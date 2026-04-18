@@ -1,49 +1,56 @@
+import { ServiceTable } from './db';
+
 /**
  * =============================================================================
- * 【  - 店舗データ型定義 / cafe.types.ts】
+ * 【 ALETHEIA - 店舗データ型定義 / cafe.types.ts 】
  * =============================================================================
- * ■ 役割: システム全体で使用される「店舗データ」の構造を定義する。
+ * ■ 役割: システム全体で使用される「店舗データ」の構造を論理的に定義する。
  * ■ 実行環境: Isomorphic (Server / Client 両方で参照可能)
  * -----------------------------------------------------------------------------
  * 💡 設計のポイント:
- * 1. サーバー(D1)から取得する際の型安全を保証する。
- * 2. フロントエンドで表示する際のプロパティ名のスペルミスを防ぐ。
- * 3. 将来的に詳細画面用の型（CafeDetail）などが必要になった際もここで一括管理する。
+ * 1. db.ts の物理定義を Pick/Omit することで、DB構造との同期を保つ。
+ * 2. 検索一覧表示(CafeResult)に必要な項目を厳選し、不要な情報漏洩を防ぐ。
  * -----------------------------------------------------------------------------
  */
 
 /**
  * [CafeResult]
  * 検索一覧などで使用される、店舗の概要データ型。
- * D1 の Services テーブルのカラム構造と対応させています。
+ * D1 の ServiceTable から、表示に必要なカラムのみを抽出しています。
  */
-export type CafeResult = {
-  /** 店舗名（例:   Coffee 丸の内） */
-  title: string;
-  
-  /** * 駅情報や周辺コンテキスト（例: 東京駅 徒歩3分）
-   * DB上で NULL の可能性があるため、オプショナル（?）として定義。
-   */
-  station_context?: string;
-
-  /** * 位置情報ハッシュ（前方一致検索に使用）
-   * 一覧表示には不要な場合もありますが、型として定義しておくとデバッグ時に便利です。
-   */
-  geohash?: string;
+export type CafeResult = Pick<
+  ServiceTable,
+  | 'id'
+  | 'title'
+  | 'geohash'
+  | 'floor_info'
+  | 'station_context'
+  | 'category_id'
+  | 'price_range'
+> & {
+  /** 距離計算などで使用するための緯度・経度（必須） */
+  lat: number;
+  lng: number;
 };
 
 /**
  * [CafeSearchResponse]
  * API エンドポイント (/api/search) が返却するレスポンス全体の型定義。
- * 将来的に「件数(total)」や「ページネーション情報」を含める拡張に対応しやすくします。
  */
-export type CafeSearchResponse = CafeResult[];
+export type CafeSearchResponse = {
+  /** 検索にヒットした総件数 */
+  total: number;
+  /** 店舗データのリスト */
+  items: CafeResult[];
+};
 
 /**
  * [CafeErrorResponse]
  * API エンドポイントがエラー時に返却する標準的な型。
  */
 export type CafeErrorResponse = {
+  /** エラー識別子 (例: "UNAUTHORIZED") */
   error: string;
+  /** 開発者またはユーザー向けのメッセージ */
   message?: string;
 };
