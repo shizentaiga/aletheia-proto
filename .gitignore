@@ -19,7 +19,6 @@ lambda.zip
 .idea/workspace.xml
 .idea/usage.statistics.xml
 .idea/shelf
-.mf/          # Miniflare（ローカルエミュレータ）のデータ保存先
 
 # --- 3. 外部ライブラリ (Dependencies) ---
 # 重要：巨大なファイル群です。package.jsonがあれば再現可能なため同期厳禁
