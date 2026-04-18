@@ -16,7 +16,7 @@
     {
       "binding": "ALETHEIA_PROTO_DB", // コード内での識別子（大文字推奨）
       "database_name": "aletheia-proto-db", // 管理画面上の名前
-      "database_id": "94f653ea-a980-4b2d-82c7-fc99fca7162d"
+      "database_id": "fcb9efbe-33b8-4a48-884f-b0dd3afcfa60"
     }
   ],
   "vars": {
