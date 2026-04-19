@@ -1,0 +1,51 @@
+#!/bin/bash
+
+# =============================================================================
+# 【 ALETHEIA - Database Seeding Script 】
+# =============================================================================
+# 使い方: 
+#   [LOCAL]  
+# chmod +x src/db/apply_seeds.sh\  
+# ./src/db/apply_seeds.sh\  --local
+#   [REMOTE] ⭐️チェックなしで自動実行されるので注意
+# ./src/db/apply_seeds.sh\  --remote
+# チェック方法：
+# npx wrangler d1 execute ALETHEIA_PROTO_DB --local --command="SELECT count(*) FROM services;"
+# =============================================================================
+
+
+# 1. 実行環境の判定（引数がなければローカルをデフォルトにする）
+TARGET="--local"
+if [ "$1" == "--remote" ]; then
+  TARGET="--remote"
+fi
+
+DB_NAME="ALETHEIA_PROTO_DB"
+
+echo "🚀 Starting seeding for $DB_NAME ($TARGET)..."
+
+# 2. 実行関数の定義（エラーが発生したら即時終了するように設定）
+execute_sql() {
+  local file=$1
+  echo "📄 Executing: $file"
+  npx wrangler d1 execute $DB_NAME $TARGET --file="$file" --yes
+  
+  if [ $? -ne 0 ]; then
+    echo "❌ Error: Failed to execute $file"
+    exit 1
+  fi
+}
+
+# 3. 実行順序の定義（依存関係の重要順）
+# -----------------------------------------------------------------------------
+# STEP 1: 基盤データ（テーブル全削除 & マスタ投入）
+execute_sql "./src/db/seed/_core.sql"
+
+# STEP 2: チェーン店データ（店舗データ）
+execute_sql "./src/db/seed/chains/starbucks.sql"
+
+# STEP 3: テスト用個別データ（必要に応じて追加）
+# execute_sql "./src/db/seed/test_users.sql"
+# -----------------------------------------------------------------------------
+
+echo "✅ Seeding completed successfully!"
