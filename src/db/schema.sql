@@ -6,139 +6,200 @@
  * [REMOTE] npx wrangler d1 execute ALETHEIA_PROTO_DB --remote --file=./src/db/schema.sql
  * -----------------------------------------------------------------------------
  * =============================================================================
-*/
-
+ */
 
 /**
  * =============================================================================
- * 【 ALETHEIA - Prototype Database Schema (v0.5.1) 】
+ * 【 ALETHEIA - Database Schema (v1.5.0-Zen-Refined) 】
  * =============================================================================
- * 役割：真理を露呈させるための、高密度・低遅延データ構造の定義。
- * 統合：Discovery(Cafe要件) + Trust(Booking不変性) + Audit(Payment証跡)
+ * 役割：高密度・低遅延、そして「人間が直感的に直せる」筋肉質な構造。
+ * * 主な変更点 (v1.4.0 -> v1.5.0):
+ * 1. 複雑性の排除：証跡保持(SET NULL)を廃止。ユーザー削除時は関連データも CASCADE。
+ * 2. 開発体験の向上：user_activities を CASCADE に戻し、店舗物理削除を容易に。
+ * 3. 整合性の維持：plan_id NOT NULL や CHECK 制約、booked_by RESTRICT は継続採用。
+ * 4. 構造の純粋化：proposal_supports は PRIMARY KEY 構成に戻し、支持の重複を完全封鎖。
  * =============================================================================
+ */
+
+/** ⭐️注意事項
+ * 予約（早い者勝ち）の実装には、以下の条件を必須とする。
+--  UPDATE slots 
+--  SET booked_by = ?, version = version + 1 
+--  WHERE slot_id = ? AND booked_by IS NULL AND version = ?;
  */
 
 -- 0. データベース設定
 PRAGMA foreign_keys = ON;
 
--- 1. テーブルの初期化 (依存関係を考慮した順序)
-DROP TABLE IF EXISTS payment_gateway_logs;
+-- 1. テーブルの初期化
+DROP TABLE IF EXISTS proposal_supports;
+DROP TABLE IF EXISTS service_proposals;
+DROP TABLE IF EXISTS user_activities;
+DROP TABLE IF EXISTS service_cafe_details;
+DROP TABLE IF EXISTS service_category_rel;
 DROP TABLE IF EXISTS slots;
 DROP TABLE IF EXISTS services;
+DROP TABLE IF EXISTS brands;
+DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS access_plans;
 DROP TABLE IF EXISTS users;
 
--- 2. ユーザーテーブル (Users)
-/**
- * 役割：個人のアイデンティティとガバナンスの管理。
- */
+-- 2. アクセスプラン
+CREATE TABLE access_plans (
+    plan_id            TEXT PRIMARY KEY,
+    display_name       TEXT NOT NULL,
+    max_favorites      INTEGER DEFAULT 10,
+    max_memo_length    INTEGER DEFAULT 60,
+    can_propose_edits  BOOLEAN DEFAULT FALSE,
+    created_at         DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. ユーザーテーブル
 CREATE TABLE users (
-    user_id       TEXT PRIMARY KEY,         -- ULID or Google Sub
-    email         TEXT UNIQUE,              -- 連絡用・リピーター特定用
-    display_name  TEXT,                     -- 表示名
-    avatar_url    TEXT,                     -- プロフィール画像URL
-    role          TEXT DEFAULT 'user',      -- admin / owner / user
-    refresh_token TEXT,                     -- ローリングセッション用
-    last_login_at DATETIME,                 -- 最終活動記録
-    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+    user_id        TEXT PRIMARY KEY,
+    email          TEXT UNIQUE NOT NULL,
+    display_name   TEXT,
+    role           TEXT DEFAULT 'user' NOT NULL CHECK (role IN ('user', 'admin', 'owner')),
+    plan_id        TEXT DEFAULT 'free' NOT NULL,
+    last_login_at  DATETIME,
+    deleted_at     DATETIME,
+    created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (plan_id) REFERENCES access_plans(plan_id) ON DELETE RESTRICT
 );
 
--- 3. サービス・店舗テーブル (Services)
-/**
- * 役割：130億人を支える Discovery（探索）とコンテキスト保持の核心。
- */
+-- 4. ブランド & カテゴリ
+CREATE TABLE brands (
+    brand_id     TEXT PRIMARY KEY,
+    name         TEXT NOT NULL,
+    is_chain     BOOLEAN DEFAULT TRUE,
+    official_url TEXT
+);
+
+CREATE TABLE categories (
+    category_id  TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL
+);
+
+-- 5. サービス・店舗テーブル
 CREATE TABLE services (
-    service_id      TEXT PRIMARY KEY,       -- ULID
-    owner_id        TEXT NOT NULL,          -- users.user_id (FK)
-    status          TEXT DEFAULT 'draft'    -- 公開制御
-        CHECK (status IN ('draft', 'published', 'private', 'archived')),
-    geohash         TEXT NOT NULL,          -- 空間検索用ハッシュ (LIKE前方一致用)
-    lat             REAL NOT NULL,          -- 緯度
-    lng             REAL NOT NULL,          -- 経度
-    address         TEXT,                   -- 物理住所
-    title           TEXT NOT NULL,          -- 店舗名・サービス名
-    description     TEXT,                   -- 詳細（Markdown想定）
-    floor_info      TEXT,                   -- 物理文脈
-    station_context TEXT,                   -- 相対文脈
-    category_id     INTEGER,                -- 業態分類
-    external_url    TEXT,                   -- 公式・予約URL
-    price_range     TEXT,                   -- 予算目安
-    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (owner_id) REFERENCES users(user_id) ON DELETE CASCADE
-);
-
--- 4. 予約・枠管理テーブル (Slots)
-/**
- * 役割：時間の在庫管理と、予約時点の情報の不変性（Immutability）を保証。
- */
-CREATE TABLE slots (
-    slot_id         TEXT PRIMARY KEY,       -- ULID
-    service_id      TEXT NOT NULL,          -- services.service_id (FK)
-    customer_id     TEXT,                   -- users.user_id (FK)
-    user_email      TEXT,                   -- 非会員予約用
-    booking_status  TEXT DEFAULT 'pending'  -- ステータス管理
-        CHECK (booking_status IN ('pending', 'booked', 'cancelled', 'refunded', 'no_show', 'error')),
-    start_at_unix   INTEGER NOT NULL,       -- UnixTime
-    end_at_unix     INTEGER NOT NULL,       -- 終了時刻
+    service_id      TEXT PRIMARY KEY,
+    brand_id        TEXT,
+    owner_id        TEXT NOT NULL,
+    plan_id         TEXT DEFAULT 'free' NOT NULL,
     
-    -- 【誠実さの担保：不変性カラム】マスター変更の影響を受けない証跡
-    actual_title    TEXT NOT NULL,          -- 予約当時のサービス名
-    actual_price    TEXT,                   -- 予約当時の価格
-
-    payment_intent_id TEXT UNIQUE,          -- 決済照合ID
-    expires_at      INTEGER,                -- 自動解放期限
+    title           TEXT NOT NULL,
+    address         TEXT NOT NULL,
+    geohash_9       TEXT NOT NULL,
+    lat             REAL NOT NULL,
+    lng             REAL NOT NULL,
+    
+    updated_by      TEXT,
+    version         INTEGER DEFAULT 1,
+    verification_level INTEGER DEFAULT 0,
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    deleted_at      DATETIME,
+    
+    FOREIGN KEY (brand_id) REFERENCES brands(brand_id) ON DELETE SET NULL,
+    FOREIGN KEY (owner_id) REFERENCES users(user_id) ON DELETE RESTRICT,
+    FOREIGN KEY (updated_by) REFERENCES users(user_id) ON DELETE SET NULL,
+    FOREIGN KEY (plan_id)  REFERENCES access_plans(plan_id) ON DELETE RESTRICT
+);
+
+-- 多対多：カテゴリ対応
+CREATE TABLE service_category_rel (
+    service_id  TEXT,
+    category_id TEXT,
+    PRIMARY KEY (service_id, category_id),
+    FOREIGN KEY (service_id)  REFERENCES services(service_id) ON DELETE CASCADE,
+    FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE
+);
+
+-- 6. カテゴリ特有詳細
+CREATE TABLE service_cafe_details (
+    service_id      TEXT PRIMARY KEY,
+    has_wifi        BOOLEAN DEFAULT FALSE,
+    has_power       BOOLEAN DEFAULT FALSE,
+    seating_capacity INTEGER,
+    FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE
+);
+
+-- 7. ユーザー活動テーブル
+CREATE TABLE user_activities (
+    activity_id      TEXT PRIMARY KEY,
+    user_id          TEXT NOT NULL,
+    service_id       TEXT NOT NULL,
+    
+    favorited_at     DATETIME,
+    visited_at       DATETIME,
+    
+    tentative_date   TEXT, -- v1.2の精神に基づき、制約をアプリ層へ戻しシンプル化
+    personal_memo    TEXT,
+    
+    updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, service_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE
+);
+
+-- 8. 改善提案テーブル
+CREATE TABLE service_proposals (
+    proposal_id      TEXT PRIMARY KEY,
+    service_id       TEXT NOT NULL,
+    user_id          TEXT NOT NULL,         -- NOT NULLに戻し、型安全性を優先
+    field_name       TEXT NOT NULL,
+    proposed_value   TEXT NOT NULL,
+    status           TEXT DEFAULT 'pending' NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
+    resolved_by      TEXT,
+    created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE,
-    FOREIGN KEY (customer_id) REFERENCES users(user_id)
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (resolved_by) REFERENCES users(user_id) ON DELETE SET NULL
 );
 
--- 5. 決済監査ログテーブル (Payment Gateway Logs)
-/**
- * 役割：外部決済プロバイダーからの生データを隔離保存し、トラブル時の検証を可能にする。
- */
-CREATE TABLE payment_gateway_logs (
-    log_id            TEXT PRIMARY KEY,     -- イベントID (Provider発行)
-    provider          TEXT NOT NULL,
-    event_type        TEXT NOT NULL,
-    payload           TEXT NOT NULL,
-    webhook_signature TEXT,
-    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
+-- 8.5 提案支持テーブル
+CREATE TABLE proposal_supports (
+    proposal_id      TEXT NOT NULL,
+    user_id          TEXT NOT NULL,
+    created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (proposal_id, user_id),     -- 複合主キーで一貫性を担保
+    FOREIGN KEY (proposal_id) REFERENCES service_proposals(proposal_id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id)     REFERENCES users(user_id) ON DELETE CASCADE
 );
 
--- 6. パフォーマンス・インデックス
-CREATE INDEX idx_services_geohash ON services(geohash);
-CREATE INDEX idx_services_owner_id ON services(owner_id);
-CREATE INDEX idx_slots_lookup ON slots (service_id, booking_status, start_at_unix);
+-- 9. 予約可能枠 (Slots)
+CREATE TABLE slots (
+    slot_id          TEXT PRIMARY KEY,
+    service_id       TEXT NOT NULL,
+    start_at_unix    INTEGER NOT NULL,
+    duration_minutes INTEGER DEFAULT 60,
+    booked_by        TEXT,
+    version          INTEGER DEFAULT 1,
+    created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
+    
+    UNIQUE(service_id, start_at_unix),
+    FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE,
+    -- 「予約が入っている」という事実を守るため、ここだけは RESTRICT を維持
+    FOREIGN KEY (booked_by)  REFERENCES users(user_id) ON DELETE RESTRICT
+);
 
--- 7. 自動更新トリガー (updated_at)
--- 💡 NEW.[table]_id を指定することで、更新ループを防ぎ、確実に当該行を更新します。
+-- 10. パフォーマンス・インデックス
+CREATE INDEX idx_services_lookup ON services(geohash_9) WHERE deleted_at IS NULL;
+CREATE INDEX idx_slots_available ON slots(service_id, start_at_unix) WHERE booked_by IS NULL;
+CREATE INDEX idx_user_activity_lookup ON user_activities(user_id, service_id);
+CREATE INDEX idx_proposal_service_status ON service_proposals(service_id, status);
+
+-- 11. 自動更新トリガー
 CREATE TRIGGER IF NOT EXISTS trigger_services_updated_at
 AFTER UPDATE ON services FOR EACH ROW 
+WHEN NEW.updated_at = OLD.updated_at
 BEGIN
     UPDATE services SET updated_at = CURRENT_TIMESTAMP WHERE service_id = NEW.service_id;
 END;
 
-CREATE TRIGGER IF NOT EXISTS trigger_slots_updated_at
-AFTER UPDATE ON slots FOR EACH ROW 
+CREATE TRIGGER IF NOT EXISTS trigger_user_activities_updated_at
+AFTER UPDATE ON user_activities FOR EACH ROW 
+WHEN NEW.updated_at = OLD.updated_at
 BEGIN
-    UPDATE slots SET updated_at = CURRENT_TIMESTAMP WHERE slot_id = NEW.slot_id;
+    UPDATE user_activities SET updated_at = CURRENT_TIMESTAMP WHERE activity_id = NEW.activity_id;
 END;
-
--- 8. 初期接続テスト用データ
-INSERT INTO users (user_id, email, display_name, role) 
-VALUES ('test_user_001', 'test@example.com', 'Aletheia Test Admin', 'admin');
-
-INSERT INTO services (
-    service_id, owner_id, status, geohash, lat, lng, title, floor_info, station_context, category_id
-) VALUES (
-    '01HRC_SAMPLE_CAFE_ID_001', 
-    'test_user_001', 
-    'published', 
-    'xn76ghj', 
-    35.6812, 139.7671, 
-    '☕ Aletheia Prototype Cafe', 
-    'B1F', 
-    '🚩改札外 徒歩1分', 
-    1
-);
