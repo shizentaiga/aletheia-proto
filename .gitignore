@@ -1,38 +1,34 @@
 # =================================================================
-# プロジェクト『 』Git除外設定 (.gitignore)
+# プロジェクト『ALETHEIA』Git除外設定 (.gitignore)
 # 意図：GitHubの軽量化、およびセキュリティ（秘密鍵等）の保護
 # =================================================================
 
 # --- 1. ビルド・生成物 (Production) ---
-# ソースから生成可能なファイルは、リポジトリを重くするため同期しません
 dist/
 lambda.zip
 *.tsbuildinfo
+out/
 
 # --- 2. 開発ツール設定 (Editor / IDE) ---
-# 開発者個人のエディタ設定などは共有せず、各自の環境に委ねます
 .yarn/
 !.yarn/releases
-.vscode/*
+# .vscode内の全ファイルを一旦無視し、必要な設定だけ穴を開ける
+.vscode/**/*
 !.vscode/launch.json
 !.vscode/*.code-snippets
-.idea/workspace.xml
-.idea/usage.statistics.xml
-.idea/shelf
+!.vscode/settings.json
+.idea/
 
 # --- 3. 外部ライブラリ (Dependencies) ---
-# 重要：巨大なファイル群です。package.jsonがあれば再現可能なため同期厳禁
 node_modules/
 
 # --- 4. 環境変数・秘密情報 (Security) ---
-# 絶対に同期しないでください！流出するとAPIキー等が盗まれるリスクがあります
-.env
-.env.production
-.dev.vars    # Cloudflare Workers用のローカル秘密鍵
-env*.local    # ローカル専用の環境変数ファイルを網羅
+# 全ての .env 系ファイルを一括除外
+.env*
+.dev.vars
+env*.local
 
 # --- 5. ログ・一時ファイル (Logs) ---
-# 開発中のエラーログなどは、リポジトリを汚すため除外します
 logs/
 *.log
 npm-debug.log*
@@ -40,17 +36,16 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+.pnpm-debug.log*
 
 # --- 6. Cloudflare / Wrangler 固有 ---
-# ローカル開発時のキャッシュや一時的なデータです
-.wrangler/   # wranglerツールが使用するキャッシュ（同期不要）
-.mf/           # ローカルDBの実体データが含まれるため必須
+.wrangler/
+.mf/
 
-# --- 7. その他 (Misc) ---
-.DS_Store    # Macが自動生成する表示設定ファイル
-.pnpm-debug.log*    # PNPM使用時のデバッグ用ログファイル
+# --- 7. OS 固有 (Misc) ---
+.DS_Store
 .AppleDouble
 .LSOverride
 Icon?
-._* # Macのメタデータファイル
-
+._*
+Thumbs.db
