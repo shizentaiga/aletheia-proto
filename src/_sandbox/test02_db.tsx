@@ -1,75 +1,108 @@
 import { Hono } from 'hono'
 import { html } from 'hono/html'
 
-type Bindings = {
-  ALETHEIA_PROTO_DB: D1Database
-  ENVIRONMENT?: string
-}
-
-export const test02 = new Hono<{ Bindings: Bindings }>()
-
 /**
- * ==========================================================
- * 【 Test02: D1 Database 接続疎通確認 】
- * ==========================================================
+ * 【 ALETHEIA - D1 Database Inspector (Debug Tool) 】
+ * 表示制限: パフォーマンス保護のため、各テーブル最大1000件まで表示。
+ * 役割: Cloudflare D1上の各テーブルの最新データをWebブラウザから一覧確認するためのデバッグ用エンドポイント。
+ * 特徴: スキーマ変更に依存しない動的レンダリング（Object.keys/values）を採用。
+ * 改善: 大量データ閲覧用にスクロール領域とヘッダー固定を実装。
  */
 
-// --- A. 店舗一覧表示 (servicesテーブル) ---
-// アクセス先: http://localhost:8787/_sandbox/test02
+type Bindings = { ALETHEIA_PROTO_DB: D1Database }
+export const test02 = new Hono<{ Bindings: Bindings }>()
+
+// --- 1. インスペクター・メイン画面 ---
 test02.get('/', async (c) => {
-  const envName = c.env.ENVIRONMENT || 'development (local)';
+  const db = c.env.ALETHEIA_PROTO_DB;
+  const tables = ['access_plans', 'users', 'brands', 'categories', 'services'];
 
   try {
-    // 1. schema.sql で定義した services テーブルから全件取得
-    const { results } = await c.env.ALETHEIA_PROTO_DB
-      .prepare('SELECT * FROM services LIMIT 10')
-      .all();
+    const data = await Promise.all(
+      tables.map(async (t) => {
+        const { results } = await db.prepare(`SELECT * FROM ${t} LIMIT 1000`).all();
+        return { table: t, rows: results };
+      })
+    );
 
-    // 2. 取得したデータをリスト形式でレンダリング
     return c.html(html`
-      <div style="font-family: sans-serif; padding: 20px;">
-        <h2 style="color: #333;">🧪 Test02: DB Connection Test</h2>
-        <p>Environment: <strong>${envName}</strong></p>
-        <hr>
-        <h3>Services Table (Sample Data)</h3>
-        ${results.length === 0 
-          ? html`<p style="color: red;">⚠️ データが見つかりません。seed.sqlを実行しましたか？</p>` 
-          : html`
-            <div style="display: grid; gap: 10px;">
-              ${results.map((item: any) => html`
-                <div style="border: 1px solid #ccc; padding: 15px; border-radius: 8px; background: #fff;">
-                  <strong style="font-size: 1.1rem;">${item.title}</strong><br>
-                  <small style="color: #666;">ID: ${item.id}</small><br>
-                  <span style="display: inline-block; margin-top: 5px; padding: 2px 8px; background: #e0e0e0; border-radius: 4px; font-size: 0.8rem;">
-                    ${item.station_context}
-                  </span>
-                </div>
-              `)}
-            </div>
-          `
+      <style>
+        body { font-family: sans-serif; font-size: 0.8rem; background: #f4f4f4; padding: 15px; color: #333; margin: 0; }
+        h3 { margin-top: 0; }
+        
+        /* テーブルを囲むセクションの装飾 */
+        section { background: #fff; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 25px; padding: 15px; }
+        h4 { margin: 0 0 12px; color: #007bff; border-left: 4px solid #007bff; padding-left: 10px; font-size: 1rem; }
+
+        /* スクロールコンテナの改善：高さを固定し、縦横にスクロール可能にする */
+        .table-container { 
+          max-height: 400px; /* ボックスの高さを制限 */
+          overflow: auto;    /* 縦横両方のスクロールを許可 */
+          border: 1px solid #eee;
+          position: relative;
         }
-        <hr>
-      </div>
-    `)
-  } catch (e) {
-    console.error("DB Error:", e);
-    return c.html(html`
-      <div style="color: red; padding: 20px; border: 2px solid red;">
-        <h3>❌ データベース接続エラー</h3>
-        <p>${String(e)}</p>
-        <p><strong>確認事項:</strong></p>
-        <ul>
-          <li>wrangler.jsonc の Binding名が <code>ALETHEIA_PROTO_DB</code> か？</li>
-          <li>ローカル実行なら <code>--local</code> を付けて <code>execute</code> したか？</li>
-        </ul>
-      </div>
-    `, 500)
-  }
-})
 
-// --- B. ユーザー生データ確認 (JSON) ---
-// アクセス先: http://localhost:8787/_sandbox/test02/raw
+        table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        
+        /* ヘッダーの固定設定 */
+        th { 
+          position: sticky; 
+          top: 0; 
+          background: #f8f9fa; 
+          z-index: 10; 
+          border-bottom: 2px solid #dee2e6;
+          box-shadow: 0 1px 0 rgba(0,0,0,0.05); /* 境界線を強調 */
+        }
+
+        th, td { border: 1px solid #eee; padding: 10px; text-align: left; white-space: nowrap; }
+        tr:nth-child(even) { background: #fafafa; }
+        tr:hover { background: #f1f7ff; } /* ホバーで行を強調 */
+        
+        .empty { color: #999; font-style: italic; padding: 20px; text-align: center; }
+        .row-count { font-size: 0.7rem; color: #666; font-weight: normal; margin-left: 10px; }
+      </style>
+
+      <body>
+        <h3>🧪 ALETHEIA: DB Inspector</h3>
+        
+        ${data.map(res => html`
+          <section>
+            <h4>
+              ${res.table} 
+              <span class="row-count">(${res.rows.length} rows visible)</span>
+            </h4>
+            
+            ${res.rows.length === 0 ? html`<p class="empty">No data available.</p>` : html`
+              <div class="table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      ${Object.keys(res.rows[0]).map(k => html`<th>${k}</th>`)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${res.rows.map(row => html`
+                      <tr>${Object.values(row).map(v => html`<td>${v === null ? html`<span style="color:#ccc;">null</span>` : v}</td>`)}</tr>
+                    `)}
+                  </tbody>
+                </table>
+              </div>
+            `}
+          </section>
+        `)}
+        
+        <p style="margin-bottom: 30px;">
+          <a href="/_sandbox/test02/raw" style="text-decoration:none; color:#007bff;">&rarr; User Raw Data (JSON)</a>
+        </p>
+      </body>
+    `);
+  } catch (e) {
+    return c.text(`DB Error: ${String(e)}`, 500);
+  }
+});
+
+// --- 2. 生データ確認用 API ---
 test02.get('/raw', async (c) => {
   const { results } = await c.env.ALETHEIA_PROTO_DB.prepare('SELECT * FROM users').all();
   return c.json(results);
-})
+});

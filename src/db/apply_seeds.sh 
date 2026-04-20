@@ -6,13 +6,12 @@
 # 使い方: 
 #   [LOCAL]  
 #     chmod +x ./src/db/apply_seeds.sh\  
-#     ./src/db/apply_seeds.sh\   --local
+#     ./src/db/apply_seeds.sh\  --local
 #
 #   [REMOTE] ※ 本番環境への反映
-#     ./src/db/apply_seeds.sh\   --remote
+#     ./src/db/apply_seeds.sh\  --remote
 #
-# チェック方法：
-#   npx wrangler d1 execute ALETHEIA_PROTO_DB --local --command="SELECT count(*) FROM services;"
+# ※ 環境上の制約により、コマンド実行時は末尾に \ (スペース付き) が必要です。
 # =============================================================================
 
 # 1. 実行環境の判定
@@ -29,10 +28,12 @@ fi
 
 DB_NAME="ALETHEIA_PROTO_DB"
 
-# 実際のディレクトリ構造 (ls -R の結果) に基づくパス設定
+# パス設定
+SCHEMA_FILE="./src/db/schema.sql"
 SEED_DIR="./src/db/seed"
-# ls 結果から、development.sql の代わりに存在する seed.sql を指定
+CORE_SEED="./src/db/seed/_core.sql"
 DEV_SEED="./src/db/seed.sql"
+GENERATED_STB="./scripts/logs/starbucks_generated.sql"
 
 echo "🚀 Starting seeding for $DB_NAME ($TARGET)..."
 
@@ -40,42 +41,50 @@ echo "🚀 Starting seeding for $DB_NAME ($TARGET)..."
 execute_sql() {
   local file=$1
   if [ ! -f "$file" ]; then
-    echo "⚠️  Skip: $file not found."
-    return
+    echo "⚠️  エラー: ファイル $file がありません。スキップします。"
+    return 1
   fi
 
   echo "📄 Executing: $file"
+  # 環境制約に合わせてコマンド実行。--yesフラグで対話プロンプトをスキップ
   npx wrangler d1 execute $DB_NAME $TARGET --file="$file" --yes
   
   if [ $? -ne 0 ]; then
     echo "❌ Error: Failed to execute $file"
     exit 1
   fi
+  return 0
 }
 
-# 3. 実行順序の定義
+# 3. 実行順序の定義（依存関係を厳守：Schema -> Core -> Seed -> Chain）
 # -----------------------------------------------------------------------------
 
-# STEP 1: 基盤データ（プラン、カテゴリ、管理ユーザー等）
-execute_sql "$SEED_DIR/_core.sql"
+# STEP 0: テーブルの初期化
+execute_sql "$SCHEMA_FILE"
 
-# STEP 2: チェーン店データの一括投入
-echo "🏢 Processing chain data..."
+# STEP 1: 基盤データの投入（FOREIGN KEYの親側）
+execute_sql "$CORE_SEED"
+
+# STEP 2: 開発用/共通設定の投入
+execute_sql "$DEV_SEED"
+
+# STEP 3: 自動生成されたチェーン店データの投入
+execute_sql "$GENERATED_STB"
+
+# STEP 4: 個別のチェーン店データ（ディレクトリが存在する場合のみ）
 if [ -d "$SEED_DIR/chains" ]; then
+  echo "🏢 Processing additional chain data..."
   for sql_file in "$SEED_DIR/chains/"*.sql; do
     [ -e "$sql_file" ] || continue
     execute_sql "$sql_file"
   done
 else
-  echo "⚠️  Skip: $SEED_DIR/chains directory not found."
+  echo "ℹ️  情報: ファイル $SEED_DIR/chains がありません。"
 fi
-
-# STEP 3: 開発・検証用データ（ルートにある seed.sql）
-execute_sql "$DEV_SEED"
 
 # -----------------------------------------------------------------------------
 
 echo "✅ Seeding completed successfully for $DB_NAME ($TARGET)!"
 
-# 次回実行のための権限付与
-chmod +x ./src/db/apply_seeds.sh\  
+# 次回実行のための権限付与（環境制約に基づき \ を付与）
+chmod +x ./src/db/apply_seeds.sh\
