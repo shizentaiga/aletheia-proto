@@ -1,9 +1,12 @@
 /**
  * =============================================================================
- * 【 ALETHEIA - Database Schema (v1.6.0-Zen-Refined) 】
+ * 【 ALETHEIA - Database Schema (v1.6.1-Zen-Refined) 】
  * =============================================================================
  * 役割：情報の「種」から「資産」への成長を許容する、高密度地点データベース。
  * 特徴：不完全なデータ（座標なし等）の登録を許容し、ユーザーの熱量で補完する構造。
+ * * ■ v1.6.1 変更点:
+ * 1. 地図検索の高速化のため、ブランドと座標の複合インデックスを追加。
+ * 2. 外部Place IDによる重複登録を物理的に防ぐ UNIQUE INDEX を追加。
  * * ■ プロジェクト構造
  * -- src/
  * -- └── db/
@@ -21,21 +24,13 @@
  * [LOCAL]  npx wrangler d1 execute ALETHEIA_PROTO_DB --local  --file=./src/db/schema.sql
  * [REMOTE] npx wrangler d1 execute ALETHEIA_PROTO_DB --remote --file=./src/db/schema.sql 
  * -----------------------------------------------------------------------------
- * * ■ 設計思想：情報の「動的成長」モデル
- * 1. 「器」としての地点登録：座標やオーナーが不明でも、名前と住所があれば登録可能。
- * 2. 外部との疎結合：Google Place ID 等を保持し、独自データと公式データを共存させる。
- * 3. 民主的なクレンジング：提案（Proposals）と支持（Supports）による表記ゆれの自然淘汰。
- * 4. 個人の体験保護：地点が統合・変化しても、ユーザーの「活動メモ」は独立して維持。
  * =============================================================================
- * スクリプト実行コマンドの例：
- * npx wrangler d1 execute ALETHEIA_PROTO_DB --local  --file=./scripts/logs/starbucks_generated.sql
  */
 
 -- 0. データベース設定
 PRAGMA foreign_keys = OFF; -- 削除時の制約エラーを防ぐため一時オフ
 
 -- 1. テーブルの初期化
--- 依存関係（子テーブル）から順に削除し、最後に親テーブルを消す
 DROP TABLE IF EXISTS proposal_supports;      -- 親: service_proposals
 DROP TABLE IF EXISTS service_proposals;     -- 親: services, users
 DROP TABLE IF EXISTS user_activities;       -- 親: services, users
@@ -51,13 +46,12 @@ DROP TABLE IF EXISTS access_plans;          -- 全ての基盤（最後に削除
 PRAGMA foreign_keys = ON; -- 作成前にオンに戻す
 
 -- 2. アクセスプラン
--- ユーザーの権限やリソース制限（お気に入り数、編集可否）を定義
 CREATE TABLE access_plans (
     plan_id            TEXT PRIMARY KEY,
     display_name       TEXT NOT NULL,
-    max_favorites      INTEGER DEFAULT 10,  -- お気に入り登録の上限
-    max_memo_length    INTEGER DEFAULT 60,  -- 1地点あたりのメモ文字数
-    can_propose_edits  BOOLEAN DEFAULT FALSE, -- 地点情報の修正提案ができるか
+    max_favorites      INTEGER DEFAULT 10,
+    max_memo_length    INTEGER DEFAULT 60,
+    can_propose_edits  BOOLEAN DEFAULT FALSE,
     created_at         DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -75,7 +69,6 @@ CREATE TABLE users (
 );
 
 -- 4. ブランド & カテゴリ
--- ブランドはチェーン店判定に使用。カテゴリは「カフェ」「喫茶店」等のタグ管理。
 CREATE TABLE brands (
     brand_id     TEXT PRIMARY KEY,
     name         TEXT NOT NULL,
@@ -88,35 +81,30 @@ CREATE TABLE categories (
     display_name TEXT NOT NULL
 );
 
--- 5. サービス・店舗テーブル（ALETHEIAの核）
--- 座標(lat/lng)をNULL許容にすることで、名前と住所のみの「先行登録」を実現。
+-- 5. サービス・店舗テーブル
 CREATE TABLE services (
     service_id      TEXT PRIMARY KEY,
     brand_id        TEXT,
-    -- 初期はオーナー不在（一般ユーザーの発見）を想定しNULLを許容
     owner_id        TEXT, 
     plan_id         TEXT DEFAULT 'free' NOT NULL,
     
-    -- 外部ID連携：Google ID等を保持し、後の表記ゆれ統合や自動更新の「フック」にする
     ext_place_id    TEXT, -- Google Place ID など
-    ext_source      TEXT, -- データ元（'google', 'user_manual' など）
+    ext_source      TEXT, -- データ元
     
-    title           TEXT NOT NULL, -- 店名（表記ゆれがあっても一旦許容）
-    address         TEXT NOT NULL, -- 住所
+    title           TEXT NOT NULL,
+    address         TEXT NOT NULL,
     
-    -- 地理情報：後から高精度な座標を入力できるよう制約を排除
-    geohash_9       TEXT, -- 検索・タイル管理用のハッシュコード
-    lat             REAL, -- 緯度
-    lng             REAL, -- 経度
+    geohash_9       TEXT,
+    lat             REAL,
+    lng             REAL,
     
-    updated_by      TEXT, -- 最後に編集したユーザー
-    version         INTEGER DEFAULT 1, -- 同時実行制御用のバージョン
-    -- 検証ステータス：0(未検証), 1(座標確定), 2(オーナー確認済)
+    updated_by      TEXT,
+    version         INTEGER DEFAULT 1,
     verification_level INTEGER DEFAULT 0, 
     
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
-    deleted_at      DATETIME, -- 論理削除用
+    deleted_at      DATETIME,
     
     FOREIGN KEY (brand_id) REFERENCES brands(brand_id) ON DELETE SET NULL,
     FOREIGN KEY (owner_id) REFERENCES users(user_id) ON DELETE SET NULL,
@@ -134,7 +122,6 @@ CREATE TABLE service_category_rel (
 );
 
 -- 6. カテゴリ特有詳細
--- 基本属性（店名・住所）以外の「カフェならでは」の属性を分離
 CREATE TABLE service_cafe_details (
     service_id      TEXT PRIMARY KEY,
     has_wifi        BOOLEAN DEFAULT FALSE,
@@ -143,35 +130,33 @@ CREATE TABLE service_cafe_details (
     FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE
 );
 
--- 7. ユーザー活動テーブル（個人の体験を記録）
--- 地点情報が統合されても、ユーザーの「メモ」はここに紐付いて保護される
+-- 7. ユーザー活動テーブル
 CREATE TABLE user_activities (
     activity_id      TEXT PRIMARY KEY,
     user_id          TEXT NOT NULL,
     service_id       TEXT NOT NULL,
     
-    favorited_at     DATETIME, -- お気に入り登録日時
-    visited_at       DATETIME, -- 最終訪問日時
+    favorited_at     DATETIME,
+    visited_at       DATETIME,
     
-    tentative_date   TEXT, -- 予定日（文字列で柔軟に保持）
-    personal_memo    TEXT, -- 自分専用の非公開メモ
+    tentative_date   TEXT,
+    personal_memo    TEXT,
     
     updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(user_id, service_id), -- 1ユーザー1地点1活動を保証
+    UNIQUE(user_id, service_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE
 );
 
 -- 8. 改善提案テーブル
--- 表記ゆれの「マージ（統合）」や、座標の「後付け」をユーザーに依頼する仕組み
 CREATE TABLE service_proposals (
     proposal_id      TEXT PRIMARY KEY,
-    service_id       TEXT NOT NULL, -- 対象地点
-    user_id          TEXT NOT NULL, -- 提案者
-    field_name       TEXT NOT NULL, -- 'lat_lng', 'title', 'merge_with' 等
-    proposed_value   TEXT NOT NULL, -- 修正後の値（統合時は相手のID）
+    service_id       TEXT NOT NULL,
+    user_id          TEXT NOT NULL,
+    field_name       TEXT NOT NULL,
+    proposed_value   TEXT NOT NULL,
     status           TEXT DEFAULT 'pending' NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
-    resolved_by      TEXT, -- 承認/却下した管理者
+    resolved_by      TEXT,
     created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
@@ -179,7 +164,6 @@ CREATE TABLE service_proposals (
 );
 
 -- 8.5 提案支持テーブル
--- 民主的なデータクレンジング。一定以上の支持で自動承認する運用も可能
 CREATE TABLE proposal_supports (
     proposal_id      TEXT NOT NULL,
     user_id          TEXT NOT NULL,
@@ -190,14 +174,13 @@ CREATE TABLE proposal_supports (
 );
 
 -- 9. 予約可能枠 (Slots)
--- 早い者勝ち（Optimistic Lock）を実現するためのバージョン管理を含む
 CREATE TABLE slots (
     slot_id          TEXT PRIMARY KEY,
     service_id       TEXT NOT NULL,
-    start_at_unix    INTEGER NOT NULL, -- 検索効率のためUnixTimeで保持
+    start_at_unix    INTEGER NOT NULL,
     duration_minutes INTEGER DEFAULT 60,
-    booked_by        TEXT, -- 予約者ID
-    version          INTEGER DEFAULT 1, -- 競合検知用
+    booked_by        TEXT,
+    version          INTEGER DEFAULT 1,
     created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
     
     UNIQUE(service_id, start_at_unix),
@@ -206,14 +189,19 @@ CREATE TABLE slots (
 );
 
 -- 10. パフォーマンス・インデックス
--- 座標(Geohash)が確定している地点のみを地図検索対象として高速化
+-- 地図検索の高速化：ブランド絞り込み＋座標検索
+CREATE INDEX idx_services_brand_geo ON services(brand_id, geohash_9) WHERE geohash_9 IS NOT NULL AND deleted_at IS NULL;
+
+-- 重複登録の防止：外部IDがある場合は物理的に一意性を担保
+CREATE UNIQUE INDEX uidx_services_ext_place_id ON services(ext_place_id) WHERE ext_place_id IS NOT NULL;
+
+-- 既存のインデックス
 CREATE INDEX idx_services_geo_lookup ON services(geohash_9) WHERE geohash_9 IS NOT NULL AND deleted_at IS NULL;
 CREATE INDEX idx_slots_available ON slots(service_id, start_at_unix) WHERE booked_by IS NULL;
 CREATE INDEX idx_user_activity_lookup ON user_activities(user_id, service_id);
 CREATE INDEX idx_proposal_service_status ON service_proposals(service_id, status);
 
 -- 11. 自動更新トリガー
--- アプリ層での実装漏れを防ぎ、updated_atを自動的に最新に保つ
 CREATE TRIGGER IF NOT EXISTS trigger_services_updated_at
 AFTER UPDATE ON services FOR EACH ROW 
 WHEN NEW.updated_at = OLD.updated_at
