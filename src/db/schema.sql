@@ -1,29 +1,23 @@
 /**
  * =============================================================================
- * 【 ALETHEIA - Database Schema (v1.6.1-Zen-Refined) 】
+ * 【 ALETHEIA - Database Schema (v1.7.0-Zen-Refined) 】
  * =============================================================================
  * 役割：情報の「種」から「資産」への成長を許容する、高密度地点データベース。
  * 特徴：不完全なデータ（座標なし等）の登録を許容し、ユーザーの熱量で補完する構造。
- * * ■ v1.6.1 変更点:
- * 1. 地図検索の高速化のため、ブランドと座標の複合インデックスを追加。
- * 2. 外部Place IDによる重複登録を物理的に防ぐ UNIQUE INDEX を追加。
+ * * ■ v1.7.0 変更点:
+ * 1. 認証基盤の拡張：Google ID受容のため users テーブルを柔軟化。
+ * 2. 役割・状態のマスタ化：CHECK制約を卒業し、ID(INT)管理のマスタテーブルを導入。
+ * 3. 空間検索インフラ：日本全体の分類と検索の入り口として transport_nodes を追加。
+ * 4. メンテナンス性：論理削除(deleted_at)と状態管理を統合し、移行に強い構造へ。
  * * ■ プロジェクト構造
  * -- src/
  * -- └── db/
  * --     ├── schema.sql            (テーブル定義：常に全削除・全作成)
  * --     ├── seed/
- * --     │   ├── _core.sql         (基盤：プラン、カテゴリ、システムadminなど)
- * --     │   ├── chains/           (大規模地点データ：ブランド別に管理)
- * --     │   │   ├── starbucks.sql (スタバ：約1,900店舗)
- * --     │   │   ├── mcdonalds.sql (マクドナルド：約3,000店舗)
- * --     │   │   └── doutor.sql    (ドトール：約1,000店舗)
- * --     │   └── development.sql    (開発用：テスト予約枠・活動メモなど)
- * --     └── apply_seeds.sh         (依存関係を考慮した一括流し込みスクリプト)
- * * ■ 実行コマンド
- * -----------------------------------------------------------------------------
- * [LOCAL]  npx wrangler d1 execute ALETHEIA_PROTO_DB --local  --file=./src/db/schema.sql
- * [REMOTE] npx wrangler d1 execute ALETHEIA_PROTO_DB --remote --file=./src/db/schema.sql 
- * -----------------------------------------------------------------------------
+ * --     │   ├── _core.sql         (基盤：プラン、ロール、状態、カテゴリ等)
+ * --     │   ├── chains/           (ブランド別地点データ)
+ * --     │   └── development.sql   (開発・テスト用データ)
+ * --     └── apply_seeds.sh         (依存関係を考慮した流し込み)
  * =============================================================================
  */
 
@@ -31,23 +25,26 @@
 PRAGMA foreign_keys = OFF; -- 削除時の制約エラーを防ぐため一時オフ
 
 -- 1. テーブルの初期化
-DROP TABLE IF EXISTS proposal_supports;      -- 親: service_proposals
-DROP TABLE IF EXISTS service_proposals;     -- 親: services, users
-DROP TABLE IF EXISTS user_activities;       -- 親: services, users
-DROP TABLE IF EXISTS service_cafe_details;  -- 親: services
-DROP TABLE IF EXISTS service_category_rel;  -- 親: services, categories
-DROP TABLE IF EXISTS slots;                 -- 親: services, users
-DROP TABLE IF EXISTS services;              -- 親: brands, users, access_plans
+DROP TABLE IF EXISTS transport_nodes;
+DROP TABLE IF EXISTS proposal_supports;
+DROP TABLE IF EXISTS service_proposals;
+DROP TABLE IF EXISTS user_activities;
+DROP TABLE IF EXISTS service_cafe_details;
+DROP TABLE IF EXISTS service_category_rel;
+DROP TABLE IF EXISTS slots;
+DROP TABLE IF EXISTS services;
 DROP TABLE IF EXISTS brands;
 DROP TABLE IF EXISTS categories;
-DROP TABLE IF EXISTS users;                 -- 親: access_plans
-DROP TABLE IF EXISTS access_plans;          -- 全ての基盤（最後に削除）
+DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS role_definitions;
+DROP TABLE IF EXISTS status_definitions;
+DROP TABLE IF EXISTS access_plans;
 
 PRAGMA foreign_keys = ON; -- 作成前にオンに戻す
 
--- 2. アクセスプラン
+-- 2. アクセスプラン & マスタ定義
 CREATE TABLE access_plans (
-    plan_id            TEXT PRIMARY KEY,
+    plan_id           TEXT PRIMARY KEY,
     display_name       TEXT NOT NULL,
     max_favorites      INTEGER DEFAULT 10,
     max_memo_length    INTEGER DEFAULT 60,
@@ -55,20 +52,49 @@ CREATE TABLE access_plans (
     created_at         DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- 3. ユーザーテーブル
+-- 役割定義 (0:USER, 1:ADMIN, 2:OWNER等)
+CREATE TABLE role_definitions (
+    id   INTEGER PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE
+);
+
+-- 状態定義 (提案の状態やユーザーの状態をID管理)
+CREATE TABLE status_definitions (
+    id      INTEGER PRIMARY KEY,
+    context TEXT NOT NULL, -- 'PROPOSAL', 'USER', 'NODE' 等
+    name    TEXT NOT NULL
+);
+
+-- 3. ユーザーテーブル (Googleログイン対応)
 CREATE TABLE users (
     user_id        TEXT PRIMARY KEY,
-    email          TEXT UNIQUE NOT NULL,
+    google_id      TEXT UNIQUE,       -- Google Auth ID
+    email          TEXT UNIQUE,       -- 将来の他認証を考慮しNULL許容可
     display_name   TEXT,
-    role           TEXT DEFAULT 'user' NOT NULL CHECK (role IN ('user', 'admin', 'owner')),
+    role_id        INTEGER DEFAULT 0 NOT NULL,
+    status_id      INTEGER DEFAULT 0 NOT NULL, -- 0:ACTIVE, 1:DELETED等
     plan_id        TEXT DEFAULT 'free' NOT NULL,
     last_login_at  DATETIME,
     deleted_at     DATETIME,
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (role_id) REFERENCES role_definitions(id),
     FOREIGN KEY (plan_id) REFERENCES access_plans(plan_id) ON DELETE RESTRICT
 );
 
--- 4. ブランド & カテゴリ
+-- 4. 交通ノード (駅・バス停：日本全体を分類するデータベースの核)
+CREATE TABLE transport_nodes (
+    node_id        TEXT PRIMARY KEY,
+    name           TEXT NOT NULL,       -- "小岩駅"
+    type           TEXT NOT NULL,       -- 'station', 'bus_stop'
+    line_name      TEXT,                -- '総武線'
+    geohash_9      TEXT NOT NULL,
+    lat            REAL NOT NULL,
+    lng            REAL NOT NULL,
+    address_prefix TEXT,                -- '東京都江戸川区'（絞り込み用）
+    created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. ブランド & カテゴリ
 CREATE TABLE brands (
     brand_id     TEXT PRIMARY KEY,
     name         TEXT NOT NULL,
@@ -81,15 +107,15 @@ CREATE TABLE categories (
     display_name TEXT NOT NULL
 );
 
--- 5. サービス・店舗テーブル
+-- 6. サービス・店舗テーブル
 CREATE TABLE services (
     service_id      TEXT PRIMARY KEY,
     brand_id        TEXT,
     owner_id        TEXT, 
     plan_id         TEXT DEFAULT 'free' NOT NULL,
     
-    ext_place_id    TEXT, -- Google Place ID など
-    ext_source      TEXT, -- データ元
+    ext_place_id    TEXT, -- Google Place ID等
+    ext_source      TEXT,
     
     title           TEXT NOT NULL,
     address         TEXT NOT NULL,
@@ -121,16 +147,16 @@ CREATE TABLE service_category_rel (
     FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE
 );
 
--- 6. カテゴリ特有詳細
+-- 7. カテゴリ特有詳細 (カフェ等)
 CREATE TABLE service_cafe_details (
-    service_id      TEXT PRIMARY KEY,
-    has_wifi        BOOLEAN DEFAULT FALSE,
-    has_power       BOOLEAN DEFAULT FALSE,
+    service_id       TEXT PRIMARY KEY,
+    has_wifi         BOOLEAN DEFAULT FALSE,
+    has_power        BOOLEAN DEFAULT FALSE,
     seating_capacity INTEGER,
     FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE
 );
 
--- 7. ユーザー活動テーブル
+-- 8. ユーザー活動テーブル (お気に入り・メモ)
 CREATE TABLE user_activities (
     activity_id      TEXT PRIMARY KEY,
     user_id          TEXT NOT NULL,
@@ -140,7 +166,7 @@ CREATE TABLE user_activities (
     visited_at       DATETIME,
     
     tentative_date   TEXT,
-    personal_memo    TEXT,
+    personal_memo    TEXT, -- 最大60文字想定（アプリ層でバリデーション）
     
     updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, service_id),
@@ -148,14 +174,14 @@ CREATE TABLE user_activities (
     FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE
 );
 
--- 8. 改善提案テーブル
+-- 9. 改善提案テーブル
 CREATE TABLE service_proposals (
     proposal_id      TEXT PRIMARY KEY,
     service_id       TEXT NOT NULL,
     user_id          TEXT NOT NULL,
     field_name       TEXT NOT NULL,
     proposed_value   TEXT NOT NULL,
-    status           TEXT DEFAULT 'pending' NOT NULL CHECK (status IN ('pending', 'approved', 'rejected')),
+    status_id        INTEGER DEFAULT 0 NOT NULL, -- status_definitions参照
     resolved_by      TEXT,
     created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE,
@@ -163,7 +189,7 @@ CREATE TABLE service_proposals (
     FOREIGN KEY (resolved_by) REFERENCES users(user_id) ON DELETE SET NULL
 );
 
--- 8.5 提案支持テーブル
+-- 提案支持テーブル
 CREATE TABLE proposal_supports (
     proposal_id      TEXT NOT NULL,
     user_id          TEXT NOT NULL,
@@ -173,7 +199,7 @@ CREATE TABLE proposal_supports (
     FOREIGN KEY (user_id)      REFERENCES users(user_id) ON DELETE CASCADE
 );
 
--- 9. 予約可能枠 (Slots)
+-- 10. 予約可能枠 (Slots)
 CREATE TABLE slots (
     slot_id          TEXT PRIMARY KEY,
     service_id       TEXT NOT NULL,
@@ -188,20 +214,20 @@ CREATE TABLE slots (
     FOREIGN KEY (booked_by)  REFERENCES users(user_id) ON DELETE RESTRICT
 );
 
--- 10. パフォーマンス・インデックス
--- 地図検索の高速化：ブランド絞り込み＋座標検索
-CREATE INDEX idx_services_brand_geo ON services(brand_id, geohash_9) WHERE geohash_9 IS NOT NULL AND deleted_at IS NULL;
-
--- 重複登録の防止：外部IDがある場合は物理的に一意性を担保
+-- 11. パフォーマンス・インデックス
+-- 地図検索：座標および削除フラグ
+CREATE INDEX idx_services_geo ON services(geohash_9) WHERE deleted_at IS NULL;
+-- ブランド絞り込み検索
+CREATE INDEX idx_services_brand_geo ON services(brand_id, geohash_9) WHERE deleted_at IS NULL;
+-- 重複登録防止
 CREATE UNIQUE INDEX uidx_services_ext_place_id ON services(ext_place_id) WHERE ext_place_id IS NOT NULL;
-
--- 既存のインデックス
-CREATE INDEX idx_services_geo_lookup ON services(geohash_9) WHERE geohash_9 IS NOT NULL AND deleted_at IS NULL;
+-- 交通ノード検索
+CREATE INDEX idx_nodes_geo ON transport_nodes(geohash_9);
+CREATE INDEX idx_nodes_lookup ON transport_nodes(address_prefix, type);
+-- 予約枠
 CREATE INDEX idx_slots_available ON slots(service_id, start_at_unix) WHERE booked_by IS NULL;
-CREATE INDEX idx_user_activity_lookup ON user_activities(user_id, service_id);
-CREATE INDEX idx_proposal_service_status ON service_proposals(service_id, status);
 
--- 11. 自動更新トリガー
+-- 12. 自動更新トリガー
 CREATE TRIGGER IF NOT EXISTS trigger_services_updated_at
 AFTER UPDATE ON services FOR EACH ROW 
 WHEN NEW.updated_at = OLD.updated_at

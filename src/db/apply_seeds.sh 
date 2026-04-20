@@ -1,23 +1,34 @@
 #!/bin/bash
 
 # =============================================================================
-# 【 ALETHEIA - Database Seeding Script (v1.6.1-Zen-Refined) 】
+# 【 CONFIGURATION - 初期設定（パス変更の際はこちらを修正） 】
 # =============================================================================
-# 概要: 
-#   D1 データベースのスキーマ再構築およびシードデータの流し込みを自動化します。
-#   依存関係（Schema -> Core -> Chains -> Dev）を厳守して実行されます。
-#
+DB_NAME="ALETHEIA_PROTO_DB"
+
+# 基本ディレクトリ
+DB_BASE_DIR="./src/db"
+SEED_BASE_DIR="$DB_BASE_DIR/seed"
+
+# 各種SQLファイルのパス
+SCHEMA_FILE="$DB_BASE_DIR/schema.sql"
+CORE_SEED="$SEED_BASE_DIR/_core.sql"
+DEV_SEED="$SEED_BASE_DIR/development.sql"
+
+# チェーン店データのディレクトリ（生成された starbucks.sql 等が格納される場所）
+CHAINS_DIR="$SEED_BASE_DIR/chains"
+
+# =============================================================================
+# 【 ALETHEIA - Database Seeding Script (v1.7.0-Zen-Refined) 】
+# =============================================================================
 # 使い方: 
 #   [LOCAL]  
-#     chmod +x ./src/db/apply_seeds.sh\  
+#     chmod +x ./src/db/apply_seeds.sh\ 
 #     ./src/db/apply_seeds.sh\  --local
 #
-#   [REMOTE] ※ 本番環境（Cloudflare D1）への反映
+#   [REMOTE] ※ 本番環境への反映
 #     ./src/db/apply_seeds.sh\  --remote
 #
-# 注意事項:
-#   ※ 環境上の制約により、コマンド実行時は末尾に \ (スペース付き) が必要です。
-#   ※ 実行時、既存のデータはすべて削除（DROP）されます。
+# ※ 環境上の制約により、コマンド実行時は末尾に \ と 半角スペース が必要です。
 # =============================================================================
 
 # 1. 実行環境の判定
@@ -32,31 +43,18 @@ if [ "$1" == "--remote" ]; then
   fi
 fi
 
-DB_NAME="ALETHEIA_PROTO_DB"
-
-# --- パス設定 ---
-# schema.sql: テーブルの物理定義（DROP & CREATE）
-SCHEMA_FILE="./src/db/schema.sql"
-SEED_DIR="./src/db/seed"
-# _core.sql: システム権限、基本プラン、ブランド定義（全データの親）
-CORE_SEED="./src/db/seed/_core.sql"
-# development.sql: 動作確認用のサンプルユーザー・活動履歴
-DEV_SEED="./src/db/seed/development.sql"
-# starbucks_generated.sql: 自動生成された大量の地点データ
-GENERATED_STB="./scripts/logs/starbucks_generated.sql"
-
 echo "🚀 Starting seeding for $DB_NAME ($TARGET)..."
 
 # 2. 実行関数の定義
 execute_sql() {
   local file=$1
   if [ ! -f "$file" ]; then
-    echo "⚠️  スキップ: ファイル $file がありません。"
-    return 0
+    echo "⚠️  エラー: ファイル $file がありません。スキップします。"
+    return 1
   fi
 
   echo "📄 Executing: $file"
-  # --yes フラグにより、D1実行時の確認プロンプトをスキップして自動処理します
+  # 環境制約に合わせてコマンド実行。--yesフラグで対話プロンプトをスキップ
   npx wrangler d1 execute $DB_NAME $TARGET --file="$file" --yes
   
   if [ $? -ne 0 ]; then
@@ -66,39 +64,34 @@ execute_sql() {
   return 0
 }
 
-# 3. 実行順序の定義（依存関係の解決）
+# 3. 実行順序の定義（依存関係を厳守：Schema -> Core -> Development -> Chain）
 # -----------------------------------------------------------------------------
+
 # STEP 0: テーブルの初期化
-#   すべてのテーブルを削除し、最新のスキーマで再作成します。
 execute_sql "$SCHEMA_FILE"
 
-# STEP 1: 基盤データの投入
-#   プラン定義、カテゴリ、およびシステム管理者を登録します。
-#   このデータがないと、以降の店舗データ登録時に外部キー制約エラーが発生します。
+# STEP 1: 基盤データの投入（FOREIGN KEYの親側：Role, Plan, Categories等）
 execute_sql "$CORE_SEED"
 
-# STEP 2: チェーン店データの投入（メインボリューム）
-#   CORE で定義された Brand ID (brand_starbucks 等) に紐付く店舗群を登録します。
-execute_sql "$GENERATED_STB"
+# STEP 2: 開発用/共通設定の投入（Sample Users, Transport Nodes等）
+execute_sql "$DEV_SEED"
 
-# STEP 3: 個別のチェーン店データ（拡張用）
-#   chains ディレクトリ内に個別の SQL ファイルがある場合に順次適用します。
-if [ -d "$SEED_DIR/chains" ]; then
-  echo "🏢 Processing additional chain data..."
-  for sql_file in "$SEED_DIR/chains/"*.sql; do
+# STEP 3: チェーン店データの投入（ディレクトリ内の全SQLを順次実行）
+# ※ starbucks.sql もこのディレクトリに含まれるため、一括して処理されます。
+if [ -d "$CHAINS_DIR" ]; then
+  echo "🏢 Processing chain data in $CHAINS_DIR..."
+  for sql_file in "$CHAINS_DIR/"*.sql; do
+    # ファイルが存在しない場合のガード
     [ -e "$sql_file" ] || continue
     execute_sql "$sql_file"
   done
+else
+  echo "ℹ️  情報: ディレクトリ $CHAINS_DIR がありません。スキップします。"
 fi
-
-# STEP 4: 開発用サンプルデータの投入
-#   最後に実行することで、既存の店舗に対する「お気に入り」や「予約枠」を
-#   安全に紐付けることができます。
-execute_sql "$DEV_SEED"
 
 # -----------------------------------------------------------------------------
 
 echo "✅ Seeding completed successfully for $DB_NAME ($TARGET)!"
 
-# 環境制約に基づき、実行権限の維持（末尾に \ を付与）
-chmod +x ./src/db/apply_seeds.sh\
+# 次回実行のための権限付与（環境制約に基づき \ と半角スペースを付与）
+chmod +x ./src/db/apply_seeds.sh\ 
