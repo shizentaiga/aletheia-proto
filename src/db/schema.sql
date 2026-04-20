@@ -1,31 +1,36 @@
+-- npx wrangler d1 execute ALETHEIA_PROTO_DB --file=./src/db/schema.sql --local
+
 /**
  * =============================================================================
  * 【 ALETHEIA - Database Schema (v1.7.0-Zen-Refined) 】
  * =============================================================================
  * 役割：情報の「種」から「資産」への成長を許容する、高密度地点データベース。
  * 特徴：不完全なデータ（座標なし等）の登録を許容し、ユーザーの熱量で補完する構造。
- * * ■ v1.7.0 変更点:
+ * -----------------------------------------------------------------------------
+ * ■ v1.7.0 変更点:
  * 1. 認証基盤の拡張：Google ID受容のため users テーブルを柔軟化。
- * 2. 役割・状態のマスタ化：CHECK制約を卒業し、ID(INT)管理のマスタテーブルを導入。
+ * 2. 役割・状態のマスタ化：管理の抽象度を高め、移行に強い構造へ。
  * 3. 空間検索インフラ：日本全体の分類と検索の入り口として transport_nodes を追加。
- * 4. メンテナンス性：論理削除(deleted_at)と状態管理を統合し、移行に強い構造へ。
- * * ■ プロジェクト構造
+ * 4. メンテナンス性：論理削除(deleted_at)と状態管理を統合し、不毛な制約を排除。
+ * -----------------------------------------------------------------------------
+ * ■ プロジェクト構造
  * -- src/
  * -- └── db/
  * --     ├── schema.sql            (テーブル定義：常に全削除・全作成)
  * --     ├── seed/
  * --     │   ├── _core.sql         (基盤：プラン、ロール、状態、カテゴリ等)
- * --     │   ├── chains/           (ブランド別地点データ)
+ * --     │   ├── chains/            (ブランド別地点データ)
  * --     │   └── development.sql   (開発・テスト用データ)
  * --     └── apply_seeds.sh         (依存関係を考慮した流し込み)
  * =============================================================================
  */
 
 -- 0. データベース設定
-PRAGMA foreign_keys = OFF; -- 削除時の制約エラーを防ぐため一時オフ
+-- 依存関係の順序で初期化するため、基本的には不要だが安全のために残す
+PRAGMA foreign_keys = ON;
 
 -- 1. テーブルの初期化
-DROP TABLE IF EXISTS transport_nodes;
+-- 子（参照している側）から順に削除することで、外部キー制約エラーを物理的に回避する
 DROP TABLE IF EXISTS proposal_supports;
 DROP TABLE IF EXISTS service_proposals;
 DROP TABLE IF EXISTS user_activities;
@@ -33,14 +38,13 @@ DROP TABLE IF EXISTS service_cafe_details;
 DROP TABLE IF EXISTS service_category_rel;
 DROP TABLE IF EXISTS slots;
 DROP TABLE IF EXISTS services;
+DROP TABLE IF EXISTS transport_nodes;
 DROP TABLE IF EXISTS brands;
 DROP TABLE IF EXISTS categories;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS role_definitions;
 DROP TABLE IF EXISTS status_definitions;
 DROP TABLE IF EXISTS access_plans;
-
-PRAGMA foreign_keys = ON; -- 作成前にオンに戻す
 
 -- 2. アクセスプラン & マスタ定義
 CREATE TABLE access_plans (
@@ -53,6 +57,7 @@ CREATE TABLE access_plans (
 );
 
 -- 役割定義 (0:USER, 1:ADMIN, 2:OWNER等)
+-- 開発時の自由度を優先し、usersからの物理的なFOREIGN KEY制約は行わない
 CREATE TABLE role_definitions (
     id   INTEGER PRIMARY KEY,
     name TEXT NOT NULL UNIQUE
@@ -77,7 +82,7 @@ CREATE TABLE users (
     last_login_at  DATETIME,
     deleted_at     DATETIME,
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (role_id) REFERENCES role_definitions(id),
+    -- access_plansはシステムの根幹であるため制約を維持
     FOREIGN KEY (plan_id) REFERENCES access_plans(plan_id) ON DELETE RESTRICT
 );
 
@@ -133,7 +138,8 @@ CREATE TABLE services (
     deleted_at      DATETIME,
     
     FOREIGN KEY (brand_id) REFERENCES brands(brand_id) ON DELETE SET NULL,
-    FOREIGN KEY (owner_id) REFERENCES users(user_id) ON DELETE SET NULL,
+    -- 開発時のREPLACEに対応するため CASCADE を適用
+    FOREIGN KEY (owner_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (updated_by) REFERENCES users(user_id) ON DELETE SET NULL,
     FOREIGN KEY (plan_id)  REFERENCES access_plans(plan_id) ON DELETE RESTRICT
 );
@@ -166,10 +172,11 @@ CREATE TABLE user_activities (
     visited_at       DATETIME,
     
     tentative_date   TEXT,
-    personal_memo    TEXT, -- 最大60文字想定（アプリ層でバリデーション）
+    personal_memo    TEXT, -- 最大60文字想定
     
     updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, service_id),
+    -- 親の削除・置換に合わせて連動する CASCADE
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE
 );
@@ -181,7 +188,7 @@ CREATE TABLE service_proposals (
     user_id          TEXT NOT NULL,
     field_name       TEXT NOT NULL,
     proposed_value   TEXT NOT NULL,
-    status_id        INTEGER DEFAULT 0 NOT NULL, -- status_definitions参照
+    status_id        INTEGER DEFAULT 0 NOT NULL, 
     resolved_by      TEXT,
     created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE,
@@ -211,20 +218,16 @@ CREATE TABLE slots (
     
     UNIQUE(service_id, start_at_unix),
     FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE,
+    -- 予約の整合性を守るため、予約者の削除時は一旦 RESTRICT
     FOREIGN KEY (booked_by)  REFERENCES users(user_id) ON DELETE RESTRICT
 );
 
 -- 11. パフォーマンス・インデックス
--- 地図検索：座標および削除フラグ
 CREATE INDEX idx_services_geo ON services(geohash_9) WHERE deleted_at IS NULL;
--- ブランド絞り込み検索
 CREATE INDEX idx_services_brand_geo ON services(brand_id, geohash_9) WHERE deleted_at IS NULL;
--- 重複登録防止
 CREATE UNIQUE INDEX uidx_services_ext_place_id ON services(ext_place_id) WHERE ext_place_id IS NOT NULL;
--- 交通ノード検索
 CREATE INDEX idx_nodes_geo ON transport_nodes(geohash_9);
 CREATE INDEX idx_nodes_lookup ON transport_nodes(address_prefix, type);
--- 予約枠
 CREATE INDEX idx_slots_available ON slots(service_id, start_at_unix) WHERE booked_by IS NULL;
 
 -- 12. 自動更新トリガー
