@@ -19,6 +19,7 @@ import { test01 } from './test01_google-auth'  // 認証基盤（Google OAuth）
 import { test02 } from './test02_db'    // データ基盤（D1 Database）
 import { test03 } from './test03_cafe'  // 機能試作（v1: 基礎検索）
 import { test04 } from './test04_address'
+import { test05 } from './test05_cdn'
 
 type Bindings = {
   ALETHEIA_PROTO_DB: D1Database
@@ -36,4 +37,5 @@ sandboxApp.route('/test01', test01) // 認証
 sandboxApp.route('/test02', test02) // DBアクセス
 sandboxApp.route('/test03', test03) // カフェ(基本)
 sandboxApp.route('/test04', test04)
+sandboxApp.route('/test05', test05)
 
