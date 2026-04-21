@@ -30,30 +30,30 @@ VALUES
 -- 3. サービス・店舗データの投入
 INSERT OR REPLACE INTO services (
     service_id, owner_id, plan_id, ext_place_id, ext_source, 
-    title, address, geohash_9, lat, lng, verification_level, version
+    title, address, prefecture, city, geohash_9, lat, lng, verification_level, version
 ) VALUES  
 -- --- 東京駅エリア ---
 (
     'SRV_MARUNOUCHI_001', '01ARZ3NDEKTSV4RRFFQ69G5FAV', 'editor_pro', 
     'ChIJL6X7B9-LGGAR6E7Y9p9Y9pI', 'google', 
-    '☕ Coffee 丸の内', '東京都千代田区丸の内1-1', 'xn76ghj00', 35.6812, 139.7671, 1, 1
+    '☕ Coffee 丸の内', '東京都千代田区丸の内1-1', '東京都', '千代田区', 'xn76ghj00', 35.6812, 139.7671, 1, 1
 ),
 (
     'SRV_TOKYO_ST_002', '01ARZ3NDEKTSV4RRFFQ69G5FAV', 'editor_pro', 
     'ChIJ_5p_p-uLGGAR_SAMPLE_ID', 'google', 
-    '💻 Station Work Tokyo', '東京都千代田区丸の内1（東京駅構内 1F）', 'xn76ghk00', 35.6815, 139.7660, 1, 1
+    '💻 Station Work Tokyo', '東京都千代田区丸の内1（東京駅構内 1F）', '東京都', '千代田区', 'xn76ghk00', 35.6815, 139.7660, 1, 1
 ),
 -- --- 田端駅エリア ---
 (
     'SRV_TABATA_101', NULL, 'free', 
     NULL, 'user_manual', 
-    '☕ 田端ふれあいカフェ', '東京都北区田端1-1', 'xn775v100', 35.7381, 139.7608, 1, 1
+    '☕ 田端ふれあいカフェ', '東京都北区田端1-1', '東京都', '北区', 'xn775v100', 35.7381, 139.7608, 1, 1
 ),
 -- --- 小岩駅エリア (座標未確定の「種」) ---
 (
     'SRV_KOIWA_201', NULL, 'free', 
     NULL, 'user_manual', 
-    '☕ 小岩サンロード喫喫', '東京都江戸川区南小岩', NULL, NULL, NULL, 0, 1
+    '☕ 小岩サンロード喫喫', '東京都江戸川区南小岩', '東京都', '江戸川区', NULL, NULL, NULL, 0, 1
 );
 
 -- 4. カテゴリ紐付け

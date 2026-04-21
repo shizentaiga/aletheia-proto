@@ -122,7 +122,9 @@ CREATE TABLE services (
     
     title           TEXT NOT NULL, -- 店舗・地点の名称
     address         TEXT NOT NULL, -- 住所（フルテキスト）
-    
+    prefecture      TEXT,          -- 都道府県 (例: '東京都')
+    city            TEXT,          -- 市区町村 (例: '江戸川区') 
+       
     -- 【空間検索・地図表示の核心】
     geohash_9       TEXT, -- 9桁ジオハッシュ（近傍店舗の高速検索用インデックス）
     lat             REAL, -- 緯度 (Latitude): 地球上の南北位置
