@@ -218,9 +218,8 @@ test01.get('/auth/google/callback', async (c) => {
 
     // 4. セッション発行
     setCookie(c, AUTH_CONFIG.SESSION_COOKIE, user.user_id, {
-      path: '/', httpOnly: true, secure: true, maxAge: 3600
+      path: '/', httpOnly: true, secure: true, maxAge: 3600, sameSite: 'Lax' // sameSiteを追加(CSRF対策)
     })
-
     console.log('--- Step 4: Success, redirecting ---')
     return c.redirect('/_sandbox/test01/')
 
