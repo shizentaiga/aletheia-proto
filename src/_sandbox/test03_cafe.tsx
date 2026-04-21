@@ -5,26 +5,26 @@ type Bindings = { ALETHEIA_PROTO_DB: D1Database }
 export const test03 = new Hono<{ Bindings: Bindings }>()
 
 // =============================================================================
-// 1. DESIGN TOKENS - デザイナー推奨アップデート案
+// 1. DESIGN TOKENS
 // =============================================================================
 const DESIGN_TOKENS = {
   colors: {
     primary: '#007aff',       
     brand: '#006241',         
-    background: '#f8f8fa',    // 清潔感のある明るい背景
+    background: '#f8f8fa',    
     surface: '#ffffff',       
     textPrimary: '#1c1c1e',   
-    textSecondary: '#636366', // アクセシビリティに配慮したグレー
+    textSecondary: '#636366', 
     textTertiary: '#acacb0',  
     border: '#e5e5ea',        
     inkWell: '#f2f2f7'        
   },
   typography: {
-    display: { size: '22px', weight: '700', spacing: '-0.03em' }, 
+    display: { size: '20px', weight: '700', spacing: '-0.02em' }, 
     title:   { size: '16px', weight: '600', spacing: '-0.01em' }, 
     body:    { size: '14px', weight: '400', spacing: '0' },       
     caption: { size: '11px', weight: '500', spacing: '0.02em' },  
-    lineHeight: '1.6'
+    lineHeight: '1.5'
   },
   layout: {
     radius: '12px',           
@@ -32,9 +32,6 @@ const DESIGN_TOKENS = {
   }
 };
 
-// =============================================================================
-// 2. UI TEXT CONTEXT - 文言・ラベル定義
-// =============================================================================
 const UI_TEXT = {
   appTitle: 'ALETHEIA Discovery',
   rootLabel: '日本',
@@ -55,33 +52,76 @@ test03.get('/', async (c) => {
   const region = c.req.query('region') || UI_TEXT.defaultRegion;
   const pref = c.req.query('pref') || '';
   const city = c.req.query('city') || '';
-  const normalizedFilter = (pref + city).replace(/[\s　]/g, '');
+  const q = c.req.query('q') || '';
 
-  const tokyoAreaGroups = [
-    { label: '都心1', wards: ['千代田区', '中央区', '港区'] },
-    { label: '都心2', wards: ['新宿区', '文京区', '渋谷区'] },
-    { label: '城東', wards: ['台東区', '墨田区', '江東区', '荒川区', '足立区', '葛飾区', '江戸川区'] },
-    { label: '城南', wards: ['品川区', '目黒区', '大田区', '世田谷区'] },
-    { label: '城西', wards: ['中野区', '杉並区', '練馬区'] },
-    { label: '城北', wards: ['豊島区', '北区', '板橋区'] },
-  ];
+  const areaFilter = (pref + city).replace(/[\s　]/g, '');
+  const searchKeyword = q.trim().replace(/[\s　]/g, '%');
+
+  // --- デバッグ用の集計リスト取得 ---
+  let debugPrefs: { name: string, count: number }[] = [];
+  let debugCities: { name: string, count: number }[] = [];
 
   try {
-    const { total } = await db.prepare(
-      `SELECT COUNT(*) as total FROM services WHERE REPLACE(REPLACE(address, ' ', ''), '　', '') LIKE ?`
-    ).bind(`${normalizedFilter}%`).first<{ total: number }>() || { total: 0 };
-
-    // 【修正】DBに存在しない b.brand_color を除外
-    const { results } = await db.prepare(`
+    // 1. 都道府県別の件数を多い順に取得
+    const prefData = await db.prepare(`
       SELECT 
-        s.title, 
-        s.address, 
-        b.name as brand_name
+        CASE 
+          WHEN SUBSTR(address, 4, 1) = '県' THEN SUBSTR(address, 1, 4)
+          ELSE SUBSTR(address, 1, 3)
+        END as name,
+        COUNT(*) as count
+      FROM services 
+      WHERE address IS NOT NULL AND address != ''
+      GROUP BY name
+      ORDER BY count DESC
+      LIMIT 20
+    `).all<{ name: string, count: number }>();
+    debugPrefs = prefData.results;
+
+    // 2. 選択された都道府県内の市区町村別件数を取得
+    if (pref) {
+      const cityData = await db.prepare(`
+        SELECT 
+          SUBSTR(
+            address, 
+            LENGTH(?) + 1, 
+            INSTR(SUBSTR(address, LENGTH(?) + 1), '区') + 
+            INSTR(SUBSTR(address, LENGTH(?) + 1), '市') + 
+            INSTR(SUBSTR(address, LENGTH(?) + 1), '町') + 
+            INSTR(SUBSTR(address, LENGTH(?) + 1), '村') 
+          ) as name,
+          COUNT(*) as count
+        FROM services 
+        WHERE address LIKE ?
+        GROUP BY name
+        HAVING name != ''
+        ORDER BY count DESC
+        LIMIT 50
+      `).bind(pref, pref, pref, pref, pref, `${pref}%`).all<{ name: string, count: number }>();
+      debugCities = cityData.results;
+    }
+
+    // メインコンテンツ
+    const isSearchMode = q.length > 0;
+    const whereClause = isSearchMode 
+      ? `WHERE s.title LIKE ? OR s.address LIKE ?`
+      : `WHERE REPLACE(REPLACE(s.address, ' ', ''), '　', '') LIKE ?`;
+    
+    const bindParams = isSearchMode 
+      ? [`%${searchKeyword}%`, `%${searchKeyword}%`] 
+      : [`${areaFilter}%`];
+
+    const { total } = await db.prepare(
+      `SELECT COUNT(*) as total FROM services s ${whereClause}`
+    ).bind(...bindParams).first<{ total: number }>() || { total: 0 };
+
+    const { results } = await db.prepare(`
+      SELECT s.title, s.address, b.name as brand_name
       FROM services s
       LEFT JOIN brands b ON s.brand_id = b.brand_id
-      WHERE REPLACE(REPLACE(s.address, ' ', ''), '　', '') LIKE ? 
-      LIMIT 50
-    `).bind(`${normalizedFilter}%`).all();
+      ${whereClause}
+      LIMIT 100
+    `).bind(...bindParams).all();
 
     return c.html(html`
       <!DOCTYPE html>
@@ -102,111 +142,87 @@ test03.get('/', async (c) => {
             --active: ${DESIGN_TOKENS.colors.inkWell};
           }
           body { 
-            font-family: -apple-system, "Helvetica Neue", sans-serif; 
+            font-family: -apple-system, sans-serif; 
             margin: 0; background: var(--bg); color: var(--text-main); 
             line-height: ${DESIGN_TOKENS.typography.lineHeight};
-            -webkit-font-smoothing: antialiased;
           }
           
-          .breadcrumb-nav { background: var(--card); padding: 12px 16px; border-bottom: 0.5px solid var(--border); position: sticky; top: 0; z-index: 100; }
-          .breadcrumb-nav a { text-decoration: none; color: var(--primary); font-size: ${DESIGN_TOKENS.typography.caption.size}; }
-          .breadcrumb-nav span { color: var(--text-sub); font-size: ${DESIGN_TOKENS.typography.caption.size}; margin: 0 4px; }
+          .breadcrumb-nav { background: var(--card); padding: 12px 16px; border-bottom: 0.5px solid var(--border); position: sticky; top: 0; z-index: 100; padding-left: 100px; }
+          .breadcrumb-nav a { text-decoration: none; color: var(--primary); font-size: 12px; }
+          .search-box { background: var(--card); padding: 12px 16px; border-bottom: 0.5px solid var(--border); padding-left: 100px; }
+          .search-input { width: 100%; padding: 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 16px; box-sizing: border-box; }
           
-          .status-header { background: var(--card); padding: 0 16px 12px; border-bottom: 0.5px solid var(--border); }
-          .current-loc { 
-            font-size: ${DESIGN_TOKENS.typography.display.size}; 
-            font-weight: ${DESIGN_TOKENS.typography.display.weight}; 
-            letter-spacing: ${DESIGN_TOKENS.typography.display.spacing};
-            display: block; margin-bottom: 4px; 
-          }
-          .hit-count { font-size: ${DESIGN_TOKENS.typography.caption.size}; color: var(--text-sub); }
+          .status-header { background: var(--card); padding: 16px 16px 16px 100px; border-bottom: 0.5px solid var(--border); }
+          .current-loc { font-size: ${DESIGN_TOKENS.typography.display.size}; font-weight: 700; display: block; }
+          
+          .list-item { padding: 16px; border-bottom: 0.5px solid var(--border); background: var(--card); display: flex; justify-content: space-between; align-items: center; margin-left: 80px; }
+          .item-title { font-weight: 600; font-size: 15px; margin-bottom: 4px; display: block; }
+          .item-address { font-size: 13px; color: var(--text-sub); }
 
-          .area-selector { padding: 16px; }
-          .area-group { margin-bottom: 20px; }
-          .group-label { font-size: ${DESIGN_TOKENS.typography.caption.size}; font-weight: bold; color: var(--text-sub); margin-bottom: 8px; display: block; text-transform: uppercase; }
-          .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-          .grid-item { 
-            background: var(--card); border: 0.5px solid var(--border); border-radius: ${DESIGN_TOKENS.layout.radius}; 
-            padding: 10px 4px; text-align: center; text-decoration: none; 
-            color: var(--text-main); font-size: ${DESIGN_TOKENS.typography.caption.size}; font-weight: 500;
+          /* デバッグモニター (集計表示) */
+          .debug-monitor { 
+            position: fixed; top: 0; left: 0; bottom: 0; width: 80px;
+            background: rgba(30, 30, 30, 0.95); color: #00ff00; 
+            font-family: monospace; font-size: 9px; z-index: 9999;
+            overflow-y: auto; padding: 10px 4px;
+            border-right: 1px solid #444;
           }
-          .grid-item:active { background: var(--active); }
-
-          .list-section { background: var(--card); border-radius: ${DESIGN_TOKENS.layout.radius} ${DESIGN_TOKENS.layout.radius} 0 0; min-height: 400px; padding-top: 8px; }
-          .list-item { padding: 12px 16px; border-bottom: 0.5px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
-          .item-main { flex: 1; }
-          
-          .brand-label { font-weight: bold; margin-right: 4px; font-size: 0.9em; }
-          
-          .item-title { 
-            font-weight: ${DESIGN_TOKENS.typography.title.weight}; 
-            font-size: ${DESIGN_TOKENS.typography.title.size}; 
-            letter-spacing: ${DESIGN_TOKENS.typography.title.spacing};
-            display: block; margin-bottom: 2px; 
+          .debug-section-title { font-weight: bold; color: #fff; margin-bottom: 8px; border-bottom: 1px solid #555; padding-bottom: 2px; display: block; }
+          .debug-row { 
+            display: block; background: #333; padding: 4px 2px; margin-bottom: 4px; 
+            border-radius: 4px; text-align: center; line-height: 1.2;
           }
-          .item-address { font-size: ${DESIGN_TOKENS.typography.body.size}; color: var(--text-sub); }
-          .chevron { color: var(--border); font-size: 14px; }
-          .section-title { padding: 16px 16px 8px; font-size: ${DESIGN_TOKENS.typography.body.size}; font-weight: bold; color: var(--text-sub); }
+          .debug-count { color: #ffcc00; display: block; font-weight: bold; font-size: 10px; }
         </style>
       </head>
       <body>
+        <aside class="debug-monitor">
+          <span class="debug-section-title">TOP PREF</span>
+          ${debugPrefs.map(p => html`
+            <div class="debug-row">
+              ${p.name}
+              <span class="debug-count">${p.count}</span>
+            </div>
+          `)}
+          
+          <span class="debug-section-title" style="margin-top:15px">CITY (${pref})</span>
+          ${debugCities.length > 0 
+            ? debugCities.map(c => html`
+                <div class="debug-row">
+                  ${c.name}
+                  <span class="debug-count">${c.count}</span>
+                </div>
+              `)
+            : html`<span style="color:#888; font-size:8px">Select Pref</span>`
+          }
+        </aside>
+
         <nav class="breadcrumb-nav">
           <a href="/_sandbox/test03">${UI_TEXT.rootLabel}</a>
-          <span>&gt;</span>
-          <a href="/_sandbox/test03?region=${region}">${region}</a>
-          ${pref ? html`<span>&gt;</span><a href="/_sandbox/test03?region=${region}&pref=${pref}">${pref}</a>` : ''}
-          ${city ? html`<span>&gt;</span><span style="color:var(--text-main)">${city}</span>` : ''}
+          ${pref ? html`<span>&gt;</span><a href="/_sandbox/test03?pref=${pref}">${pref}</a>` : ''}
         </nav>
 
+        <div class="search-box">
+          <form method="GET" action="/_sandbox/test03">
+            <input type="text" name="q" class="search-input" placeholder="検索..." value="${q}">
+            <input type="hidden" name="pref" value="${pref}">
+          </form>
+        </div>
+
         <header class="status-header">
-          <span class="current-loc">${city || pref || region || UI_TEXT.fallbackLocation}</span>
-          <span class="hit-count">${total.toLocaleString()} ${UI_TEXT.unit}</span>
+          <span class="current-loc">${q || city || pref || UI_TEXT.fallbackLocation}</span>
+          <span style="font-size:12px; color:var(--text-sub)">${total.toLocaleString()} ${UI_TEXT.unit}</span>
         </header>
 
         <main>
-          ${!city ? html`
-            <div class="area-selector">
-              ${!pref ? html`
-                <span class="group-label">${UI_TEXT.selectors.prefPrompt}</span>
-                <div class="grid">
-                  <a href="/_sandbox/test03?region=関東&pref=東京都" class="grid-item">東京都</a>
-                  <a href="#" class="grid-item" style="color:var(--border)">神奈川県</a>
-                  <a href="#" class="grid-item" style="color:var(--border)">千葉県</a>
-                </div>
-              ` : html`
-                ${tokyoAreaGroups.map(group => html`
-                  <div class="area-group">
-                    <span class="group-label">${group.label}</span>
-                    <div class="grid">
-                      ${group.wards.map(ward => html`
-                        <a href="/_sandbox/test03?region=${region}&pref=${pref}&city=${ward}" class="grid-item">${ward}</a>
-                      `)}
-                    </div>
-                  </div>
-                `)}
-              `}
-            </div>
-          ` : ''}
-
           <div class="list-section">
-            <div class="section-title">
-              ${(city || pref || region)} ${UI_TEXT.sectionSuffix}
-            </div>
-            ${results.length === 0 ? html`<p style="padding:16px; color:var(--text-sub)">${UI_TEXT.emptyLabel}</p>` : ''}
             ${results.map(row => html`
               <div class="list-item">
-                <div class="item-main">
-                  <span class="item-title">
-                    ${row.brand_name ? html`
-                      <span class="brand-label" style="color: var(--accent)">
-                        ${row.brand_name}
-                      </span>
-                    ` : ''}
-                    ${row.title}
-                  </span>
+                <div style="flex: 1">
+                  <span class="item-title">${row.title}</span>
                   <span class="item-address">${row.address}</span>
                 </div>
-                <span class="chevron">〉</span>
+                <span style="color:var(--border); margin-left:8px">〉</span>
               </div>
             `)}
           </div>
