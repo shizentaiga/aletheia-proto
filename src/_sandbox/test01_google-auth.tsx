@@ -11,6 +11,7 @@ const AUTH_CONFIG = {
   GOOGLE_USERINFO_ENDPOINT: 'https://www.googleapis.com/oauth2/v3/userinfo',
   CALLBACK_PATH: '/_sandbox/test01/auth/google/callback',
   LOGOUT_PATH: '/_sandbox/test01/logout',
+  DELETE_ACCOUNT_PATH: '/_sandbox/test01/delete-account', // 追加
   SESSION_COOKIE: 'aletheia_test_session',
   SCOPES: 'openid email profile',
   PROMPT: 'select_account',
@@ -25,7 +26,8 @@ const STYLES = {
   CARD: 'border: 1px solid #ddd; padding: 25px; border-radius: 10px; margin-bottom: 20px; text-align: center;',
   MONITOR: 'background: #282c34; color: #61dafb; padding: 15px; border-radius: 8px; font-size: 0.8rem; text-align: left; font-family: monospace; overflow-x: auto;',
   BTN_PRIMARY: 'display: inline-block; padding: 12px 24px; background: #4285F4; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;',
-  BTN_LOGOUT: 'display: inline-block; padding: 10px 20px; border: 1px solid #d90429; color: #d90429; text-decoration: none; border-radius: 5px; font-size: 0.9rem;'
+  BTN_LOGOUT: 'display: inline-block; padding: 10px 20px; border: 1px solid #666; color: #666; text-decoration: none; border-radius: 5px; font-size: 0.9rem; margin-right: 8px;',
+  BTN_DANGER: 'display: inline-block; padding: 10px 20px; border: 1px solid #d90429; color: #d90429; text-decoration: none; border-radius: 5px; font-size: 0.9rem; cursor: pointer; background: transparent;'
 }
 
 // ==========================================================
@@ -46,8 +48,9 @@ test01.get('/', async (c) => {
   const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
   const db = c.env.ALETHEIA_PROTO_DB
 
+  // モニター用：status_id と deleted_at も取得するように拡張
   const { results: dbUsers } = await db.prepare(
-    'SELECT user_id, google_id, email, display_name, last_login_at FROM users ORDER BY created_at DESC LIMIT 5'
+    'SELECT user_id, google_id, email, display_name, status_id, last_login_at, deleted_at FROM users ORDER BY created_at DESC LIMIT 5'
   ).all()
 
   const currentUser = sessionUserId 
@@ -57,7 +60,7 @@ test01.get('/', async (c) => {
   /**
    * 【修正：日本時間への変換処理】
    * DBから取得したUTC時刻を、表示直前にJSTへ変換します。
-   * Intl.DateTimeFormat を使用することで、依存ライブラリなしで安全に変換可能です。
+   * SQLiteの CURRENT_TIMESTAMP はUTCであるため、" UTC" を付与してDateオブジェクト化します。
    */
   const formatJST = (utcString: string | null) => {
     if (!utcString) return null
@@ -65,12 +68,15 @@ test01.get('/', async (c) => {
       timeZone: 'Asia/Tokyo',
       year: 'numeric', month: '2-digit', day: '2-digit',
       hour: '2-digit', minute: '2-digit', second: '2-digit',
-    }).format(new Date(utcString + " UTC")) // SQLiteの値をUTCとして解釈
+    }).format(new Date(utcString + " UTC"))
   }
 
-  const localizedUsers = dbUsers.map(user => ({
+  const localizedUsers = dbUsers.map((user: any) => ({
     ...user,
-    last_login_at: formatJST(user.last_login_at as string)
+    // ステータスの可読性を向上
+    status: user.status_id === 1 ? '🔴 DELETED' : '🟢 ACTIVE',
+    last_login_at: formatJST(user.last_login_at as string),
+    deleted_at: formatJST(user.deleted_at as string)
   }))
 
   return c.html(html`
@@ -79,8 +85,15 @@ test01.get('/', async (c) => {
       <div style="${STYLES.CARD}">
         ${currentUser ? html`
           <p style="color: #2b9348; font-weight: bold;">✅ ログイン中: ${currentUser.display_name}</p>
-          <p style="font-size: 0.8rem; color: #666;">Email: ${currentUser.email}</p>
-          <a href="${AUTH_CONFIG.LOGOUT_PATH}" style="${STYLES.BTN_LOGOUT}">ログアウト</a>
+          <p style="font-size: 0.8rem; color: #666; margin-bottom: 20px;">Email: ${currentUser.email}</p>
+          <div>
+            <a href="${AUTH_CONFIG.LOGOUT_PATH}" style="${STYLES.BTN_LOGOUT}">ログアウト</a>
+            <button 
+              onclick="if(confirm('本当に退会しますか？\\nこの操作は取り消せません。')){ location.href='${AUTH_CONFIG.DELETE_ACCOUNT_PATH}'; }"
+              style="${STYLES.BTN_DANGER}">
+              退会する
+            </button>
+          </div>
         ` : html`
           <p style="color: #666;">現在は【未ログイン】です</p>
           <a href="/_sandbox/test01/auth/google" style="${STYLES.BTN_PRIMARY}">Googleでサインイン</a>
@@ -91,7 +104,7 @@ test01.get('/', async (c) => {
         <pre style="margin: 0;">${JSON.stringify({
           session_id: sessionUserId || 'none',
           db_rows_count: dbUsers.length,
-          latest_users: localizedUsers // 日本時間変換済みのデータ
+          latest_users: localizedUsers // 日本時間 & ステータス反映済み
         }, null, 2)}</pre>
       </div>
     </div>
@@ -141,10 +154,6 @@ test01.get('/auth/google/callback', async (c) => {
       }),
     })
 
-    /**
-     * 【教訓】fetch直後にレスポンスの成否（ok）を確認することで、
-     * 無効なJSON（エラーメッセージ等）をパースしようとして発生する連鎖的なエラーを防ぎます。
-     */
     if (!tokenRes.ok) {
       const errorText = await tokenRes.text()
       console.error('Token Exchange Error:', tokenRes.status, errorText)
@@ -166,15 +175,11 @@ test01.get('/auth/google/callback', async (c) => {
     }
 
     const googleUser = await userRes.json() as any
-    // 生のレスポンスログを出力（sub が含まれているか確認用）
     console.log('Raw Google User Data:', JSON.stringify(googleUser))
 
     /**
      * 【D1_TYPE_ERROR対策：重要】 
-     * Cloudflare D1（SQLiteドライバ）は、.bind() に JavaScript の 'undefined' が
-     * 渡されると、型の不一致として実行時エラーを投げます。
-     * 外部API（Google等）から取得したデータは常に欠落の可能性があるため、
-     * '|| null' を用いて明示的にデータベースが扱える型に変換（クレンジング）することが成功の鍵です。
+     * '|| null' を用いて明示的にデータベースが扱える型に変換（クレンジング）します。
      */
     const userData = {
       sub: googleUser.sub || null,
@@ -184,7 +189,7 @@ test01.get('/auth/google/callback', async (c) => {
 
     if (!userData.sub) {
       console.error('Validation Error: googleUser.sub is missing', googleUser)
-      throw new Error(`Google ID (sub) could not be retrieved. Raw: ${JSON.stringify(googleUser)}`)
+      throw new Error(`Google ID (sub) could not be retrieved.`)
     }
 
     // 3. DB連携
@@ -198,21 +203,16 @@ test01.get('/auth/google/callback', async (c) => {
       await db.prepare(`
         INSERT INTO users (user_id, google_id, email, display_name, role_id, status_id, plan_id, last_login_at)
         VALUES (?, ?, ?, ?, 0, 0, 'free', CURRENT_TIMESTAMP)
-      `).bind(
-        newUserId, 
-        userData.sub, 
-        userData.email, 
-        userData.name
-      ).run()
+      `).bind(newUserId, userData.sub, userData.email, userData.name).run()
       
       user = { user_id: newUserId }
     } else {
       console.log('Existing user login:', user.user_id)
       /**
-       * 【教訓】既存ユーザー時は最終ログイン日時のみ更新。
-       * これにより、Debug Monitor上で「直近のアクセス」が正常に行われたかを確認可能にします。
+       * 【論理削除からの復帰】
+       * 再ログイン時は status_id を 0 に戻し、deleted_at をリセットします。
        */
-      await db.prepare('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE user_id = ?')
+      await db.prepare('UPDATE users SET status_id = 0, deleted_at = NULL, last_login_at = CURRENT_TIMESTAMP WHERE user_id = ?')
         .bind(user.user_id).run()
     }
 
@@ -221,10 +221,6 @@ test01.get('/auth/google/callback', async (c) => {
       path: '/', httpOnly: true, secure: true, maxAge: 3600
     })
 
-    /**
-     * 【教訓】console.log によるステップ出力は、エッジ環境における非同期処理の
-     * 完了タイミングの把握を助け、開発時の問題特定を劇的に高速化させます。
-     */
     console.log('--- Step 4: Success, redirecting ---')
     return c.redirect('/_sandbox/test01/')
 
@@ -240,4 +236,30 @@ test01.get('/auth/google/callback', async (c) => {
 test01.get('/logout', (c) => {
   deleteCookie(c, AUTH_CONFIG.SESSION_COOKIE, { path: '/' })
   return c.redirect('/_sandbox/test01/')
+})
+
+/**
+ * E. 論理削除（退会）処理
+ */
+test01.get('/delete-account', async (c) => {
+  const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
+  const db = c.env.ALETHEIA_PROTO_DB
+
+  if (!sessionUserId) return c.redirect('/_sandbox/test01/')
+
+  try {
+    /**
+     * 【教訓】データを物理削除せず、フラグと時刻で管理。
+     * これにより、Debug Monitor上で「退会済み」として履歴を確認可能にします。
+     */
+    await db.prepare('UPDATE users SET status_id = 1, deleted_at = CURRENT_TIMESTAMP WHERE user_id = ?')
+      .bind(sessionUserId).run()
+
+    deleteCookie(c, AUTH_CONFIG.SESSION_COOKIE, { path: '/' })
+    console.log(`User ${sessionUserId} logically deleted.`)
+    return c.redirect('/_sandbox/test01/')
+  } catch (e) {
+    console.error('Delete Account Error:', e)
+    return c.text('Delete Error: ' + String(e), 500)
+  }
 })
