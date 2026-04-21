@@ -7,6 +7,8 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 // ==========================================================
 const AUTH_CONFIG = {
   GOOGLE_AUTH_ENDPOINT: 'https://accounts.google.com/o/oauth2/v2/auth',
+  GOOGLE_TOKEN_ENDPOINT: 'https://oauth2.googleapis.com/token',
+  GOOGLE_USERINFO_ENDPOINT: 'https://www.googleapis.com/oauth2/v3/userinfo',
   CALLBACK_PATH: '/_sandbox/test01/auth/google/callback',
   LOGOUT_PATH: '/_sandbox/test01/logout',
   SESSION_COOKIE: 'aletheia_test_session',
@@ -15,31 +17,15 @@ const AUTH_CONFIG = {
 } as const
 
 // ==========================================================
-// 2. テキスト・デザイン資産 (Assets)
+// 2. デザイン資産 (Assets)
 // ==========================================================
-const UI_TEXT = {
-  TITLE: 'ALETHEIA Auth Test',
-  LOGIN_BEFORE: '現在は【未ログイン】状態です',
-  LOGIN_AFTER: '✅ 認証済み: サービスを利用可能です',
-  LOGIN_BTN: 'Googleでサインイン',
-  LOGOUT_BTN: 'ログアウト（セッション破棄）',
-  MONITOR_TITLE: '🔍 Debug Monitor'
-}
-
 const STYLES = {
   PRIMARY_COLOR: '#4285F4',
-  DANGER_COLOR: '#d90429',
   CONTAINER: 'font-family: sans-serif; padding: 40px; max-width: 600px; margin: 0 auto;',
   CARD: 'border: 1px solid #ddd; padding: 25px; border-radius: 10px; margin-bottom: 20px; text-align: center;',
-  MONITOR: 'background: #282c34; color: #61dafb; padding: 15px; border-radius: 8px; font-size: 0.85rem; text-align: left; font-family: monospace;',
-  BUTTON_PRIMARY: `
-    display: inline-block; padding: 12px 24px; background: #4285F4; 
-    color: white; text-decoration: none; border-radius: 5px; fontWeight: bold; margin-top: 10px;
-  `,
-  BUTTON_OUTLINE: `
-    display: inline-block; padding: 10px 20px; border: 1px solid #d90429; 
-    color: #d90429; text-decoration: none; border-radius: 5px; margin-top: 10px; font-size: 0.9rem;
-  `
+  MONITOR: 'background: #282c34; color: #61dafb; padding: 15px; border-radius: 8px; font-size: 0.8rem; text-align: left; font-family: monospace; overflow-x: auto;',
+  BTN_PRIMARY: 'display: inline-block; padding: 12px 24px; background: #4285F4; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;',
+  BTN_LOGOUT: 'display: inline-block; padding: 10px 20px; border: 1px solid #d90429; color: #d90429; text-decoration: none; border-radius: 5px; font-size: 0.9rem;'
 }
 
 // ==========================================================
@@ -48,41 +34,46 @@ const STYLES = {
 type Bindings = {
   GOOGLE_CLIENT_ID: string
   GOOGLE_CLIENT_SECRET: string
-  BASE_URL: string 
+  ALETHEIA_PROTO_DB: D1Database 
 }
 
 export const test01 = new Hono<{ Bindings: Bindings }>()
 
 /**
- * A. トップ画面 (拠点のハブ)
- * セッションCookieの有無で「ログイン前」「ログイン後」のUIを切り替えます。
+ * A. トップ画面 (Debug Monitor搭載)
  */
-test01.get('/', (c) => {
-  const session = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
-  const origin = new URL(c.req.url).origin
-  const redirectUri = `${origin}${AUTH_CONFIG.CALLBACK_PATH}`
+test01.get('/', async (c) => {
+  const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
+  const db = c.env.ALETHEIA_PROTO_DB
+
+  const { results: dbUsers } = await db.prepare(
+    'SELECT user_id, google_id, email, display_name, last_login_at FROM users ORDER BY created_at DESC LIMIT 5'
+  ).all()
+
+  const currentUser = sessionUserId 
+    ? await db.prepare('SELECT * FROM users WHERE user_id = ?').bind(sessionUserId).first()
+    : null
 
   return c.html(html`
     <div style="${STYLES.CONTAINER}">
-      <h2 style="text-align: center; color: #333; margin-bottom: 30px;">${UI_TEXT.TITLE}</h2>
-
+      <h2 style="text-align: center;">ALETHEIA Auth DB Test</h2>
       <div style="${STYLES.CARD}">
-        ${session ? html`
-          <p style="color: #2b9348; font-weight: bold;">${UI_TEXT.LOGIN_AFTER}</p>
-          <a href="${AUTH_CONFIG.LOGOUT_PATH}" style="${STYLES.BUTTON_OUTLINE}">${UI_TEXT.LOGOUT_BTN}</a>
+        ${currentUser ? html`
+          <p style="color: #2b9348; font-weight: bold;">✅ ログイン中: ${currentUser.display_name}</p>
+          <p style="font-size: 0.8rem; color: #666;">Email: ${currentUser.email}</p>
+          <a href="${AUTH_CONFIG.LOGOUT_PATH}" style="${STYLES.BTN_LOGOUT}">ログアウト</a>
         ` : html`
-          <p style="color: #666;">${UI_TEXT.LOGIN_BEFORE}</p>
-          <a href="/_sandbox/test01/auth/google" style="${STYLES.BUTTON_PRIMARY}">${UI_TEXT.LOGIN_BTN}</a>
+          <p style="color: #666;">現在は【未ログイン】です</p>
+          <a href="/_sandbox/test01/auth/google" style="${STYLES.BTN_PRIMARY}">Googleでサインイン</a>
         `}
       </div>
-
       <div style="${STYLES.MONITOR}">
-        <h3 style="margin: 0 0 10px 0; font-size: 1rem; color: #fff; border-bottom: 1px solid #444; padding-bottom: 5px;">
-          ${UI_TEXT.MONITOR_TITLE}
-        </h3>
-        <p style="margin: 5px 0;">STATUS: ${session ? 'LOGGED_IN' : 'GUEST'}</p>
-        <p style="margin: 5px 0;">REDIRECT_URI: <span style="color: #d19a66;">${redirectUri}</span></p>
-        <p style="margin: 5px 0;">SESSION_ID: <span style="color: #98c379;">${session || '(none)'}</span></p>
+        <h3 style="color: #fff; border-bottom: 1px solid #444; margin: 0 0 10px 0;">🔍 Debug Monitor (DB: users)</h3>
+        <pre style="margin: 0;">${JSON.stringify({
+          session_id: sessionUserId || 'none',
+          db_rows_count: dbUsers.length,
+          latest_users: dbUsers
+        }, null, 2)}</pre>
       </div>
     </div>
   `)
@@ -100,30 +91,128 @@ test01.get('/auth/google', (c) => {
     redirect_uri: redirectUri,
     response_type: 'code',
     scope: AUTH_CONFIG.SCOPES,
-    access_type: 'offline',
     prompt: AUTH_CONFIG.PROMPT,
   })
-  
   return c.redirect(`${AUTH_CONFIG.GOOGLE_AUTH_ENDPOINT}?${queryParams.toString()}`)
 })
 
 /**
- * C. コールバック受取 (処理後にトップへ即リダイレクト)
+ * C. コールバック受取 (デバッグログ強化版)
  */
 test01.get('/auth/google/callback', async (c) => {
   const code = c.req.query('code')
-  if (!code) return c.text('認証に失敗しました', 400)
+  const origin = new URL(c.req.url).origin
+  const redirectUri = `${origin}${AUTH_CONFIG.CALLBACK_PATH}`
+  const db = c.env.ALETHEIA_PROTO_DB
 
-  // 1. 本来はここでToken交換とDB保存を行う
-  // 2. 暫定的に「code」をセッションIDとしてCookieにセット (動作確認用)
-  setCookie(c, AUTH_CONFIG.SESSION_COOKIE, `test-session-${code.substring(0, 8)}`, {
-    path: '/',
-    httpOnly: true,
-    maxAge: 3600,
-  })
+  if (!code) return c.text('Authorization code missing', 400)
 
-  // 3. 【重要】URLを綺麗にするため、拠点のトップページへリダイレクト
-  return c.redirect('/_sandbox/test01/')
+  try {
+    // 1. 認可コードをアクセストークンに交換
+    console.log('--- Step 1: Exchanging code for token ---')
+    const tokenRes = await fetch(AUTH_CONFIG.GOOGLE_TOKEN_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        code,
+        client_id: c.env.GOOGLE_CLIENT_ID,
+        client_secret: c.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: redirectUri,
+        grant_type: 'authorization_code',
+      }),
+    })
+
+    /**
+     * 【教訓】fetch直後にレスポンスの成否（ok）を確認することで、
+     * 無効なJSON（エラーメッセージ等）をパースしようとして発生する連鎖的なエラーを防ぎます。
+     */
+    if (!tokenRes.ok) {
+      const errorText = await tokenRes.text()
+      console.error('Token Exchange Error:', tokenRes.status, errorText)
+      throw new Error(`Token Exchange Failed: ${tokenRes.status}`)
+    }
+    const tokenData = await tokenRes.json() as any
+    console.log('Token data received (keys):', Object.keys(tokenData))
+
+    // 2. ユーザープロフィール取得
+    console.log('--- Step 2: Fetching UserInfo ---')
+    const userRes = await fetch(AUTH_CONFIG.GOOGLE_USERINFO_ENDPOINT, {
+      headers: { Authorization: `Bearer ${tokenData.access_token}` },
+    })
+
+    if (!userRes.ok) {
+      const errorText = await userRes.text()
+      console.error('UserInfo Fetch Error:', userRes.status, errorText)
+      throw new Error(`UserInfo Fetch Failed: ${userRes.status}`)
+    }
+
+    const googleUser = await userRes.json() as any
+    // 生のレスポンスログを出力（sub が含まれているか確認用）
+    console.log('Raw Google User Data:', JSON.stringify(googleUser))
+
+    /**
+     * 【D1_TYPE_ERROR対策：重要】 
+     * Cloudflare D1（SQLiteドライバ）は、.bind() に JavaScript の 'undefined' が
+     * 渡されると、型の不一致として実行時エラーを投げます。
+     * 外部API（Google等）から取得したデータは常に欠落の可能性があるため、
+     * '|| null' を用いて明示的にデータベースが扱える型に変換（クレンジング）することが成功の鍵です。
+     */
+    const userData = {
+      sub: googleUser.sub || null,
+      email: googleUser.email || null,
+      name: googleUser.name || googleUser.email || 'Unknown'
+    }
+
+    if (!userData.sub) {
+      console.error('Validation Error: googleUser.sub is missing', googleUser)
+      throw new Error(`Google ID (sub) could not be retrieved. Raw: ${JSON.stringify(googleUser)}`)
+    }
+
+    // 3. DB連携
+    console.log('--- Step 3: DB Operations ---')
+    let user = await db.prepare('SELECT * FROM users WHERE google_id = ?')
+      .bind(userData.sub).first() as any
+
+    if (!user) {
+      console.log('Registering new user:', userData.email)
+      const newUserId = crypto.randomUUID() 
+      await db.prepare(`
+        INSERT INTO users (user_id, google_id, email, display_name, role_id, status_id, plan_id, last_login_at)
+        VALUES (?, ?, ?, ?, 0, 0, 'free', CURRENT_TIMESTAMP)
+      `).bind(
+        newUserId, 
+        userData.sub, 
+        userData.email, 
+        userData.name
+      ).run()
+      
+      user = { user_id: newUserId }
+    } else {
+      console.log('Existing user login:', user.user_id)
+      /**
+       * 【教訓】既存ユーザー時は最終ログイン日時のみ更新。
+       * これにより、Debug Monitor上で「直近のアクセス」が正常に行われたかを確認可能にします。
+       */
+      await db.prepare('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE user_id = ?')
+        .bind(user.user_id).run()
+    }
+
+    // 4. セッション発行
+    setCookie(c, AUTH_CONFIG.SESSION_COOKIE, user.user_id, {
+      path: '/', httpOnly: true, secure: true, maxAge: 3600
+    })
+
+    /**
+     * 【教訓】console.log によるステップ出力は、エッジ環境における非同期処理の
+     * 完了タイミングの把握を助け、開発時の問題特定を劇的に高速化させます。
+     */
+    console.log('--- Step 4: Success, redirecting ---')
+    return c.redirect('/_sandbox/test01/')
+
+  } catch (e) {
+    console.error('Final Catch Block:', e)
+    return c.text('Auth Error: ' + String(e), 500)
+  }
 })
 
 /**
