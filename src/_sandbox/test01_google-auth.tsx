@@ -54,6 +54,25 @@ test01.get('/', async (c) => {
     ? await db.prepare('SELECT * FROM users WHERE user_id = ?').bind(sessionUserId).first()
     : null
 
+  /**
+   * 【修正：日本時間への変換処理】
+   * DBから取得したUTC時刻を、表示直前にJSTへ変換します。
+   * Intl.DateTimeFormat を使用することで、依存ライブラリなしで安全に変換可能です。
+   */
+  const formatJST = (utcString: string | null) => {
+    if (!utcString) return null
+    return new Intl.DateTimeFormat('ja-JP', {
+      timeZone: 'Asia/Tokyo',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    }).format(new Date(utcString + " UTC")) // SQLiteの値をUTCとして解釈
+  }
+
+  const localizedUsers = dbUsers.map(user => ({
+    ...user,
+    last_login_at: formatJST(user.last_login_at as string)
+  }))
+
   return c.html(html`
     <div style="${STYLES.CONTAINER}">
       <h2 style="text-align: center;">ALETHEIA Auth DB Test</h2>
@@ -72,7 +91,7 @@ test01.get('/', async (c) => {
         <pre style="margin: 0;">${JSON.stringify({
           session_id: sessionUserId || 'none',
           db_rows_count: dbUsers.length,
-          latest_users: dbUsers
+          latest_users: localizedUsers // 日本時間変換済みのデータ
         }, null, 2)}</pre>
       </div>
     </div>
