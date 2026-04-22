@@ -53,12 +53,12 @@ const CONFIG = {
 // -----------------------------------------------------------------------------
 
 interface CafeCardProps {
-  name: string;
-  location: string;
-  tags?: string; // 修正：オプショナルに変更してビルドエラーを回避
+  title: string;   // 修正：name -> title (DBのservicesテーブルに準拠)
+  address: string; // 修正：location -> address (DBのservicesテーブルに準拠)
+  tags?: string;   // 修正：オプショナルに変更してビルドエラーを回避
 }
 
-export const CafeCard = ({ name, location, tags }: CafeCardProps) => {
+export const CafeCard = ({ title, address, tags }: CafeCardProps) => {
   // インライン・イベントハンドラの文字列定義
   const hoverIn = `this.style.transform='${CARD_DESIGN.INTERACTION.TRANSFORM_UP}';this.style.boxShadow='${CARD_DESIGN.INTERACTION.SHADOW}';this.style.borderColor='${CARD_DESIGN.INTERACTION.BORDER_HOVER}'`;
   const hoverOut = `this.style.transform='translateY(0)';this.style.boxShadow='none';this.style.borderColor='${CARD_DESIGN.INTERACTION.BORDER_NORMAL}'`;
@@ -79,7 +79,7 @@ export const CafeCard = ({ name, location, tags }: CafeCardProps) => {
             color: CARD_DESIGN.TITLE.COLOR,
             marginBottom: '4px' 
           }}>
-            {name}
+            {title}
           </h3>
           <p style={{ 
             fontSize: CARD_DESIGN.LOCATION.FONT_SIZE, 
@@ -88,7 +88,7 @@ export const CafeCard = ({ name, location, tags }: CafeCardProps) => {
             // 修正：タグがない時は下余白を消してスッキリ見せる
             marginBottom: tags ? SPACE.SM : '0px' 
           }}>
-            {location}
+            {address}
           </p>
 
           {/* 修正：tagsが存在する場合のみレンダリング */}

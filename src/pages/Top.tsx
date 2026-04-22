@@ -56,18 +56,18 @@ const UI_COPY = {
 interface TopProps {
   user?: any;
   env?: any;
-  cafes?: Array<{ name: string; location: string }>; // 実データ受け取り用
+  cafes?: Array<{ title: string; address: string }>; // 修正：title / address へ変更
 }
 
 export const Top = ({ user, env, cafes }: TopProps) => {
   const isDev = env?.NODE_ENV === 'development';
 
   // モックデータ（実データがない場合のフォールバック）
-  // 属性タグを排除し、店名と住所のみに絞り込み
+  // 修正：プロパティ名を title / address に統一
   const displayCafes = cafes || [
-    { name: "Blue Bottle Coffee - Aoyama", location: "東京都港区南青山 3-13-14" },
-    { name: "Aletheia Lounge", location: "東京都渋谷区（プロトタイプ）" },
-    { name: "FabCafe Tokyo", location: "東京都渋谷区道玄坂 1-22-7" },
+    { title: "Blue Bottle Coffee - Aoyama", address: "東京都港区南青山 3-13-14" },
+    { title: "Aletheia Lounge", address: "東京都渋谷区（プロトタイプ）" },
+    { title: "FabCafe Tokyo", address: "東京都渋谷区道玄坂 1-22-7" },
   ];
 
   return (
@@ -110,8 +110,8 @@ export const Top = ({ user, env, cafes }: TopProps) => {
             {displayCafes.map((cafe, index) => (
               <CafeCard 
                 key={index}
-                name={cafe.name} 
-                location={cafe.location} 
+                title={cafe.title}     // 修正：name -> title
+                address={cafe.address} // 修正：location -> address
                 // tags プロパティを渡さない（またはCafeCard側で非表示に）
               />
             ))}
