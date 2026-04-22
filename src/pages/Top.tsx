@@ -2,136 +2,206 @@
  * =============================================================================
  * 【 ALETHEIA - メインポータル・ビュー / Top.tsx 】
  * =============================================================================
- * ログイン状態に応じたトップ画面の描画を担当します。
  * 📁 File Path: src/pages/Top.tsx
+ * * デザインコンセプト：
+ * 1. Sticky Search - 検索体験を途切れさせない固定バー
+ * 2. Spacing System - 余白の統一によるプロトタイプ感の脱却
+ * 3. Feedback - ホバー時の挙動とスケルトンによる期待感の演出
  * =============================================================================
  */
 
 /** @jsxImportSource hono/jsx */
 
 // -----------------------------------------------------------------------------
-// 1. デザイン設定 (Styles / Design Assets)
+// 1. デザイン設定 (Design System)
 // -----------------------------------------------------------------------------
 
-/**
- * デザイン・トーン＆マナーを一括管理
- * デザイナーが調整する際はこのオブジェクトを変更します
- */
+const SPACE = {
+  XS: '8px',
+  SM: '12px',
+  MD: '16px',
+  LG: '24px',
+  XL: '40px',
+} as const;
+
 const STYLES = {
-  COLORS: {
-    PRIMARY: '#4285F4',    // Google Blue
-    SUCCESS: '#2b9348',    // Active Green
-    DANGER: '#d90429',     // Alert Red
-    TEXT_MAIN: '#333333',
-    TEXT_MUTE: '#666666',
-    TEXT_LIGHT: '#888888',
-    BG_CARD: '#ffffff',
-    BG_FOOTER: '#f8f9fa',
-    BORDER: '#dddddd',
+  LAYOUT: {
+    WRAPPER: { 
+      minHeight: '100vh', 
+      background: '#fff', 
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      color: '#111'
+    },
+    MAIN: { maxWidth: '800px', margin: '0 auto', padding: `0 ${SPACE.MD}` },
+    HEADER: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: `${SPACE.LG} 0`,
+    },
+    // スクロール時に追いかけてくる検索バーの土台
+    STICKY_BAR: {
+      position: 'sticky' as const,
+      top: SPACE.SM,
+      zIndex: 20,
+      background: 'rgba(255,255,255,0.92)',
+      backdropFilter: 'blur(8px)',
+      padding: `${SPACE.SM} 0`,
+      marginBottom: SPACE.LG,
+    },
+    SEARCH_BOX: {
+      display: 'flex',
+      gap: SPACE.XS,
+      padding: '10px 20px',
+      background: '#fff',
+      border: '1px solid #eee',
+      borderRadius: '999px',
+      boxShadow: '0 8px 30px rgba(0,0,0,0.04)',
+      alignItems: 'center',
+    },
+    LIST: { display: 'flex', flexDirection: 'column' as const, gap: SPACE.SM, paddingBottom: SPACE.XL },
   },
-  CARD: {
-    border: '1px solid #ddd',
-    padding: '25px',
-    borderRadius: '10px',
-    background: '#ffffff',
-    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
-    textAlign: 'center' as const,
-  },
-  BUTTON: {
-    BASE: 'display: inline-block; padding: 8px 16px; border-radius: 5px; font-size: 0.9rem; text-decoration: none; transition: opacity 0.2s;',
-    PRIMARY: 'display: inline-block; padding: 12px 24px; background: #4285F4; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;',
-    LOGOUT: 'padding: 8px 16px; border: 1px solid #666; color: #666; text-decoration: none; border-radius: 5px; font-size: 0.9rem;',
-    DANGER: 'padding: 8px 16px; border: 1px solid #d90429; color: #d90429; background: transparent; border-radius: 5px; font-size: 0.9rem; cursor: pointer;',
-  },
-  FOOTER_BOX: {
-    marginTop: '30px',
-    padding: '15px',
-    borderRadius: '8px',
-    background: '#f8f9fa',
-    fontSize: '0.9rem',
-    color: '#555',
+  COMPONENTS: {
+    INPUT: { flex: 1, border: 'none', outline: 'none', fontSize: '1rem', background: 'transparent' },
+    SELECT: { border: 'none', background: 'transparent', color: '#666', fontSize: '0.85rem', cursor: 'pointer', borderLeft: '1px solid #eee', paddingLeft: SPACE.SM },
+    AUTH_BTN: { 
+      padding: '8px 20px', 
+      borderRadius: '999px', 
+      fontSize: '0.85rem', 
+      fontWeight: 'bold' as const, 
+      textDecoration: 'none',
+      background: '#111',
+      color: '#fff',
+      transition: 'opacity 0.2s'
+    },
+    CARD: {
+      padding: SPACE.LG,
+      borderRadius: '14px',
+      background: '#fff',
+      border: '1px solid #eee',
+      transition: 'all 0.18s ease',
+      cursor: 'pointer',
+      display: 'block',
+      textDecoration: 'none',
+      color: 'inherit',
+    }
   }
 }
 
 // -----------------------------------------------------------------------------
-// 2. 表示テキスト設定 (Text / I18n Assets)
+// 3. サブ・コンポーネント
 // -----------------------------------------------------------------------------
 
-const TEXT = {
-  TITLE: 'メインポータル',
-  DESCRIPTION: '情報の「種」から「資産」へ。現在はプロトタイプ稼働中です。',
-  STATUS_UNLOGGED: '現在は【未ログイン】です',
-  STATUS_LOGGED_IN: '✅ ログイン中: ',
-  BTN_SIGNIN: 'Googleでサインイン',
-  BTN_LOGOUT: 'ログアウト',
-  BTN_DELETE: '退会する',
-  CONFIRM_DELETE: '本当に退会しますか？\nこの操作は取り消せません。',
-  NEXT_STEP: '📡 次のステップ：Cloudflare Edge Locationからの地域取得',
-}
+const HeaderArea = ({ user }: { user: any }) => (
+  <header style={STYLES.LAYOUT.HEADER}>
+    <h1 style={{ fontSize: '1.1rem', fontWeight: 800, margin: 0, letterSpacing: '-0.02em' }}>
+      ALETHEIA <span style={{ fontWeight: 400, color: '#999', marginLeft: SPACE.XS, fontSize: '0.85rem' }}>〜つながりは、偶然から。〜</span>
+    </h1>
+    <nav>
+      {user ? (
+        <a href="/auth/logout" style={{ fontSize: '0.85rem', color: '#666', textDecoration: 'none' }}>ログアウト</a>
+      ) : (
+        <a href="/auth/google" style={STYLES.COMPONENTS.AUTH_BTN}>はじめる</a>
+      )}
+    </nav>
+  </header>
+)
 
-// -----------------------------------------------------------------------------
-// 3. 型定義 (Type Definitions)
-// -----------------------------------------------------------------------------
+const SearchSection = () => (
+  <div style={STYLES.LAYOUT.STICKY_BAR}>
+    <section style={STYLES.LAYOUT.SEARCH_BOX}>
+      <input type="text" placeholder="エリアや特徴で検索..." style={STYLES.COMPONENTS.INPUT} />
+      <select style={STYLES.COMPONENTS.SELECT}>
+        <option>すべての設備</option>
+        <option>Wi-Fiあり</option>
+        <option>電源あり</option>
+      </select>
+      <button style={{ background: 'transparent', border: 'none', color: '#4285F4', fontWeight: 800, cursor: 'pointer', padding: `0 ${SPACE.XS}` }}>
+        検索
+      </button>
+    </section>
+  </div>
+)
 
-interface TopProps {
-  user?: {
-    display_name: string | null
-    email: string | null
-  } | null
-}
-
-// -----------------------------------------------------------------------------
-// 4. コンポーネント (Component)
-// -----------------------------------------------------------------------------
-
-export const Top = ({ user }: TopProps) => {
-  return (
-    <div>
-      <h2 style={{ marginBottom: '20px', color: STYLES.COLORS.TEXT_MAIN }}>
-        {TEXT.TITLE}
-      </h2>
-      <p style={{ color: STYLES.COLORS.TEXT_MUTE, marginBottom: '30px' }}>
-        {TEXT.DESCRIPTION}
-      </p>
-
-      {/* --- 認証状態に応じたカード表示 --- */}
-      <div style={STYLES.CARD}>
-        {user ? (
-          <div>
-            <p style={{ color: STYLES.COLORS.SUCCESS, fontWeight: 'bold', fontSize: '1.1rem' }}>
-              {TEXT.STATUS_LOGGED_IN}{user.display_name}
-            </p>
-            <p style={{ fontSize: '0.85rem', color: STYLES.COLORS.TEXT_LIGHT, margin: '8px 0 20px' }}>
-              Email: {user.email}
-            </p>
-            
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-              <a href="/logout" style={STYLES.BUTTON.LOGOUT}>
-                {TEXT.BTN_LOGOUT}
-              </a>
-              <button 
-                onclick={`if(confirm('${TEXT.CONFIRM_DELETE}')){ location.href='/delete-account'; }`}
-                style={STYLES.BUTTON.DANGER}
-              >
-                {TEXT.BTN_DELETE}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <p style={{ color: STYLES.COLORS.TEXT_MUTE, marginBottom: '20px' }}>
-              {TEXT.STATUS_UNLOGGED}
-            </p>
-            <a href="/auth/google" style={STYLES.BUTTON.PRIMARY}>
-              {TEXT.BTN_SIGNIN}
-            </a>
-          </div>
-        )}
+const CafeCard = ({ name, tags, location }: { name: string, tags: string, location: string }) => (
+  <a 
+    href="#" 
+    style={STYLES.COMPONENTS.CARD}
+    onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 8px 20px rgba(0,0,0,0.06)';this.style.borderColor='#ddd'"
+    onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='none';this.style.borderColor='#eee'"
+  >
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div>
+        <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, marginBottom: '4px' }}>{name}</h3>
+        <p style={{ fontSize: '0.85rem', color: '#888', margin: 0, marginBottom: SPACE.SM }}>{location}</p>
+        <div style={{ display: 'flex', gap: SPACE.XS }}>
+          {tags.split(' / ').map((tag, i) => (
+            <span key={i} style={{ fontSize: '0.7rem', background: '#f5f5f5', padding: '4px 10px', borderRadius: '6px', color: '#666' }}>
+              {tag}
+            </span>
+          ))}
+        </div>
       </div>
+      <div style={{ color: '#eee', fontSize: '1.5rem' }}>›</div>
+    </div>
+  </a>
+)
 
-      {/* --- 今後の展望セクション --- */}
-      <div style={STYLES.FOOTER_BOX}>
-        <p>{TEXT.NEXT_STEP}</p>
+const SkeletonCard = () => (
+  <div style={{ ...STYLES.COMPONENTS.CARD, cursor: 'default', borderStyle: 'dashed' }}>
+    <div style={{ height: '20px', width: '40%', background: 'linear-gradient(90deg,#f4f4f4,#fafafa,#f4f4f4)', marginBottom: SPACE.SM, borderRadius: '4px' }}></div>
+    <div style={{ height: '14px', width: '60%', background: '#f9f9f9', borderRadius: '4px' }}></div>
+  </div>
+)
+
+// -----------------------------------------------------------------------------
+// 4. メイン・ビュー
+// -----------------------------------------------------------------------------
+
+export const Top = ({ user }: { user?: any }) => {
+  return (
+    <div style={STYLES.LAYOUT.WRAPPER}>
+      <div style={STYLES.LAYOUT.MAIN}>
+        
+        {/* 固定しないヘッダー */}
+        <HeaderArea user={user} />
+
+        {/* スクロール時に固定される検索セクション */}
+        <SearchSection />
+
+        <main style={STYLES.LAYOUT.LIST}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACE.XS }}>
+            <h2 style={{ fontSize: '0.9rem', color: '#111', fontWeight: 700 }}>
+              近くのワークスペース <span style={{ color: '#999', fontWeight: 400, marginLeft: SPACE.XS }}>23件のカフェ</span>
+            </h2>
+          </div>
+
+          {/* 実データ表示サンプル */}
+          <CafeCard 
+            name="Blue Bottle Coffee - Aoyama" 
+            location="東京都港区南青山 3-13-14" 
+            tags="Wi-Fi / 電源あり / テラス席" 
+          />
+          <CafeCard 
+            name="Aletheia Lounge" 
+            location="神奈川県横浜市西区（直営プロトタイプ）" 
+            tags="静かな空間 / 集中モード / 予約可" 
+          />
+          <CafeCard 
+            name="FabCafe Tokyo" 
+            location="東京都渋谷区道玄坂 1-22-7" 
+            tags="クリエイティブ / 3Dプリンタ / 電源" 
+          />
+
+          {/* ローディング Skeleton 表示サンプル */}
+          <SkeletonCard />
+          <SkeletonCard />
+
+        </main>
+
+        <footer style={{ padding: `${SPACE.XL} 0`, textAlign: 'center' as const, borderTop: '1px solid #eee' }}>
+          <p style={{ color: '#ccc', fontSize: '0.75rem', letterSpacing: '1px' }}>© 2026 ALETHEIA PROJECT</p>
+        </footer>
       </div>
     </div>
   )

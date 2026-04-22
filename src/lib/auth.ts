@@ -29,8 +29,8 @@ export const AUTH_CONFIG = {
 
   // Application Paths
   CALLBACK_PATH: '/auth/google/callback',
-  LOGOUT_PATH: '/logout',
-  DELETE_ACCOUNT_PATH: '/delete-account',
+  LOGOUT_PATH: '/auth/logout',          // /auth を付与
+  DELETE_ACCOUNT_PATH: '/auth/delete-account', // /auth を付与
 
   // Session Settings
   SESSION_COOKIE: 'aletheia_session',
@@ -206,7 +206,7 @@ authApp.get('/auth/google/callback', async (c) => {
  * C. ログアウト処理
  * サーバー側のセッション（Cookie）を削除してトップページへ戻します
  */
-authApp.get('/logout', (c) => {
+authApp.get('/auth/logout', (c) => {
   deleteCookie(c, AUTH_CONFIG.SESSION_COOKIE, { path: '/' })
   return c.redirect('/')
 })
@@ -215,7 +215,7 @@ authApp.get('/logout', (c) => {
  * D. 退会処理 (論理削除)
  * 物理削除はせず、status_id を更新してユーザーを無効化します
  */
-authApp.get('/delete-account', async (c) => {
+authApp.get('/auth/delete-account', async (c) => {
   const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
   const db = c.env.ALETHEIA_PROTO_DB
 
