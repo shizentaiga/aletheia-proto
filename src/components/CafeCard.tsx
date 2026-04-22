@@ -25,7 +25,6 @@ const CARD_DESIGN = {
     PADDING: '4px 10px' 
   },
   ARROW: { FONT_SIZE: '1.5rem', COLOR: '#eee' },
-  // ホバー時の動的スタイル設定（JS文字列として渡す用）
   INTERACTION: {
     TRANSFORM_UP: 'translateY(-2px)',
     SHADOW: '0 8px 20px rgba(0,0,0,0.06)',
@@ -45,7 +44,7 @@ const CARD_DESIGN = {
 
 const CONFIG = {
   TAG_SEPARATOR: ' / ',
-  LINK_DESTINATION: '#', // 将来的に詳細ページ '/cafe/:id' 等へ変更
+  LINK_DESTINATION: '#', 
   ARROW_CHAR: '›'
 } as const;
 
@@ -55,11 +54,11 @@ const CONFIG = {
 
 interface CafeCardProps {
   name: string;
-  tags: string;
   location: string;
+  tags?: string; // 修正：オプショナルに変更してビルドエラーを回避
 }
 
-export const CafeCard = ({ name, tags, location }: CafeCardProps) => {
+export const CafeCard = ({ name, location, tags }: CafeCardProps) => {
   // インライン・イベントハンドラの文字列定義
   const hoverIn = `this.style.transform='${CARD_DESIGN.INTERACTION.TRANSFORM_UP}';this.style.boxShadow='${CARD_DESIGN.INTERACTION.SHADOW}';this.style.borderColor='${CARD_DESIGN.INTERACTION.BORDER_HOVER}'`;
   const hoverOut = `this.style.transform='translateY(0)';this.style.boxShadow='none';this.style.borderColor='${CARD_DESIGN.INTERACTION.BORDER_NORMAL}'`;
@@ -67,16 +66,17 @@ export const CafeCard = ({ name, tags, location }: CafeCardProps) => {
   return (
     <a 
       href={CONFIG.LINK_DESTINATION} 
-      style={STYLES.COMPONENTS.CARD}
+      style={{ ...STYLES.COMPONENTS.CARD, textDecoration: 'none' }}
       onmouseover={hoverIn}
       onmouseout={hoverOut}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
+        <div style={{ flex: 1 }}>
           <h3 style={{ 
             margin: 0, 
             fontSize: CARD_DESIGN.TITLE.FONT_SIZE, 
             fontWeight: CARD_DESIGN.TITLE.WEIGHT, 
+            color: CARD_DESIGN.TITLE.COLOR,
             marginBottom: '4px' 
           }}>
             {name}
@@ -85,25 +85,36 @@ export const CafeCard = ({ name, tags, location }: CafeCardProps) => {
             fontSize: CARD_DESIGN.LOCATION.FONT_SIZE, 
             color: CARD_DESIGN.LOCATION.COLOR, 
             margin: 0, 
-            marginBottom: SPACE.SM 
+            // 修正：タグがない時は下余白を消してスッキリ見せる
+            marginBottom: tags ? SPACE.SM : '0px' 
           }}>
             {location}
           </p>
-          <div style={{ display: 'flex', gap: SPACE.XS }}>
-            {tags.split(CONFIG.TAG_SEPARATOR).map((tag, i) => (
-              <span key={i} style={{ 
-                fontSize: CARD_DESIGN.TAG.FONT_SIZE, 
-                background: CARD_DESIGN.TAG.BG, 
-                padding: CARD_DESIGN.TAG.PADDING, 
-                borderRadius: CARD_DESIGN.TAG.RADIUS, 
-                color: CARD_DESIGN.TAG.COLOR 
-              }}>
-                {tag}
-              </span>
-            ))}
-          </div>
+
+          {/* 修正：tagsが存在する場合のみレンダリング */}
+          {tags && (
+            <div style={{ display: 'flex', gap: SPACE.XS, flexWrap: 'wrap' }}>
+              {tags.split(CONFIG.TAG_SEPARATOR).map((tag, i) => (
+                <span key={i} style={{ 
+                  fontSize: CARD_DESIGN.TAG.FONT_SIZE, 
+                  background: CARD_DESIGN.TAG.BG, 
+                  padding: CARD_DESIGN.TAG.PADDING, 
+                  borderRadius: CARD_DESIGN.TAG.RADIUS, 
+                  color: CARD_DESIGN.TAG.COLOR 
+                }}>
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
-        <div style={{ color: CARD_DESIGN.ARROW.COLOR, fontSize: CARD_DESIGN.ARROW.FONT_SIZE }}>
+        
+        {/* 右側の矢印 */}
+        <div style={{ 
+          color: CARD_DESIGN.ARROW.COLOR, 
+          fontSize: CARD_DESIGN.ARROW.FONT_SIZE,
+          marginLeft: SPACE.SM 
+        }}>
           {CONFIG.ARROW_CHAR}
         </div>
       </div>
