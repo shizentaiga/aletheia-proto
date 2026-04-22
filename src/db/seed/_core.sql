@@ -38,7 +38,7 @@ VALUES
 INSERT OR REPLACE INTO access_plans (plan_id, display_name, max_favorites, max_memo_length, can_propose_edits)
 VALUES 
 ('free', 'Free Plan', 10, 60, 0),
-('editor_pro', 'Editor Pro', 100, 1000, 1);
+('editor_pro', 'Editor Pro', 30, 120, 1);
 
 -- 4. カテゴリ定義 (Categories)
 INSERT OR REPLACE INTO categories (category_id, display_name)

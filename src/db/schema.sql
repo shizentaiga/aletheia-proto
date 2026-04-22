@@ -226,26 +226,10 @@ CREATE TABLE slots (
 );
 
 -- 11. パフォーマンス・インデックス
--- 【検索の爆速化】頻繁に使われるWHERE句に対して、専用の索引を作成する。
+-- 【検索の高速化】頻繁に使われるWHERE句に対して、専用の索引を作成する。
 CREATE INDEX idx_services_geo ON services(geohash_9) WHERE deleted_at IS NULL; -- 有効な店舗をジオハッシュで探す
 CREATE INDEX idx_services_brand_geo ON services(brand_id, geohash_9) WHERE deleted_at IS NULL; -- 特定ブランドの近くの店舗を探す
 CREATE UNIQUE INDEX uidx_services_ext_place_id ON services(ext_place_id) WHERE ext_place_id IS NOT NULL; -- 外部IDでの重複を防ぐ
 CREATE INDEX idx_nodes_geo ON transport_nodes(geohash_9); -- 駅の空間検索
 CREATE INDEX idx_nodes_lookup ON transport_nodes(address_prefix, type); -- 「東京都」の「駅」を即座にリストアップ
 CREATE INDEX idx_slots_available ON slots(service_id, start_at_unix) WHERE booked_by IS NULL; -- 空き予約枠のみを抽出
-
--- 12. 自動更新トリガー
--- データ更新時に 'updated_at' カラムを自動で現在時刻に書き換え、プログラム側の負担を減らす。
-CREATE TRIGGER IF NOT EXISTS trigger_services_updated_at
-AFTER UPDATE ON services FOR EACH ROW 
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-    UPDATE services SET updated_at = CURRENT_TIMESTAMP WHERE service_id = NEW.service_id;
-END;
-
-CREATE TRIGGER IF NOT EXISTS trigger_user_activities_updated_at
-AFTER UPDATE ON user_activities FOR EACH ROW 
-WHEN NEW.updated_at = OLD.updated_at
-BEGIN
-    UPDATE user_activities SET updated_at = CURRENT_TIMESTAMP WHERE activity_id = NEW.activity_id;
-END;

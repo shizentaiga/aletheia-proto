@@ -8,6 +8,7 @@
  * 2. サーバーエラー回避のため、各テーブルのスキーマに合わせた動的クエリ生成。
  * 3. 表示件数と実件数の差を可視化し、デバッグの精度を向上。
  * 4. HTMX導入により、スクロール位置を維持したまま部分更新が可能。
+ * 5. 時刻表示: DBのUTCデータを環境に依存せずJST(日本時間)へ変換して表示。
  * =============================================================================
  */
 
@@ -38,6 +39,27 @@ const LABEL_FORMATTER = (key: string, value: any) => {
   if (value === null || value === undefined) return null;
   if (key === 'total_count_internal') return null; // 内部用カラムなので非表示
   if (key.startsWith('has_') || typeof value === 'boolean') return value ? '✅ 有' : 'ー';
+
+  // 日時関連のカラム（_at で終わる、または created_at / updated_at）を日本時間へ変換
+  if (key.endsWith('_at') || key === 'created_at' || key === 'updated_at') {
+    try {
+      // 1. 文字列の場合は SQLite の形式 "YYYY-MM-DD HH:MM:SS" を ISO形式へ変換し UTC(Z) を付与
+      // 2. 数値の場合は Unixタイムスタンプ（秒）として扱う
+      const date = typeof value === 'number' 
+        ? new Date(value * 1000) 
+        : new Date(String(value).replace(' ', 'T') + 'Z');
+
+      // 実行環境（Local/Cloudflare）に関わらず日本時間でフォーマット
+      return new Intl.DateTimeFormat('ja-JP', {
+        timeZone: 'Asia/Tokyo',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      }).format(date);
+    } catch (e) {
+      return value; // 変換失敗時は生データを返す
+    }
+  }
+
   return value;
 };
 
