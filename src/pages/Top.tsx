@@ -13,6 +13,7 @@
 // 1. 外部依存・デザインシステム
 // -----------------------------------------------------------------------------
 import { STYLES, SPACE } from '../styles/theme'
+import type { Cafe } from '../db/queries' // DB層の型をインポート
 
 // -----------------------------------------------------------------------------
 // 2. サブ・コンポーネント
@@ -45,7 +46,8 @@ const PAGE_DESIGN = {
 
 const UI_COPY = {
   LIST_TITLE: '近くのカフェ', // 「ワークスペース」から具体的表現へ
-  RESULTS_LABEL: '表示中',     // 固定件数ではなく現状の提示
+  RESULTS_LABEL: '件を表示中', 
+  TOTAL_PREFIX: '/',
   COPYRIGHT: '© 2026 ALETHEIA PROJECT'
 } as const;
 
@@ -56,19 +58,22 @@ const UI_COPY = {
 interface TopProps {
   user?: any;
   env?: any;
-  cafes?: Array<{ title: string; address: string }>; // 修正：title / address へ変更
+  cafes?: Cafe[];      // DB層の定義（title, addressを含む）を使用
+  totalCount?: number; // 検索条件に合致する全件数
 }
 
-export const Top = ({ user, env, cafes }: TopProps) => {
+export const Top = ({ user, env, cafes, totalCount }: TopProps) => {
   const isDev = env?.NODE_ENV === 'development';
 
   // モックデータ（実データがない場合のフォールバック）
-  // 修正：プロパティ名を title / address に統一
   const displayCafes = cafes || [
     { title: "Blue Bottle Coffee - Aoyama", address: "東京都港区南青山 3-13-14" },
     { title: "Aletheia Lounge", address: "東京都渋谷区（プロトタイプ）" },
     { title: "FabCafe Tokyo", address: "東京都渋谷区道玄坂 1-22-7" },
-  ];
+  ] as Cafe[];
+
+  // 表示上の総件数（DBからの totalCount がなければ現在の配列長を使用）
+  const finalTotalCount = totalCount ?? displayCafes.length;
 
   return (
     <div style={STYLES.LAYOUT.WRAPPER}>
@@ -101,7 +106,7 @@ export const Top = ({ user, env, cafes }: TopProps) => {
                   fontWeight: PAGE_DESIGN.COUNTER.WEIGHT, 
                   marginLeft: SPACE.XS 
                 }}>
-                  {displayCafes.length}件{UI_COPY.RESULTS_LABEL}
+                  {displayCafes.length}{UI_COPY.TOTAL_PREFIX}{finalTotalCount}{UI_COPY.RESULTS_LABEL}
                 </span>
               </h2>
             </div>
@@ -109,14 +114,11 @@ export const Top = ({ user, env, cafes }: TopProps) => {
             {/* カフェ一覧：タグを排除し、テキストの力強さで魅せる */}
             {displayCafes.map((cafe, index) => (
               <CafeCard 
-                key={index}
-                title={cafe.title}     // 修正：name -> title
-                address={cafe.address} // 修正：location -> address
-                // tags プロパティを渡さない（またはCafeCard側で非表示に）
+                key={cafe.service_id || index} // 可能であればユニークなIDを使用
+                title={cafe.title}
+                address={cafe.address}
               />
             ))}
-
-            {/* SkeletonCard はデータ読み込み中のみ表示する運用へ変更するため、ここでは一旦削除 */}
 
           </main>
 

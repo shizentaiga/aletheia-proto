@@ -19,6 +19,15 @@
  * =============================================================================
  */
 
+/**
+ * =============================================================================
+ * 【 ALETHEIA - システム・エントリーポイント / index.tsx 】
+ * =============================================================================
+ * 役割：ルーティングの定義、ミドルウェアの適用、各機能モジュールの接合。
+ * 📁 File Path: src/index.tsx
+ * =============================================================================
+ */
+
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono'
 import { getCookie } from 'hono/cookie'
@@ -27,22 +36,20 @@ import { Top } from './pages/Top'
 import { sandboxApp } from './_sandbox/_router'
 
 /**
- * 内部ライブラリのインポート
- * 認証基盤 (authApp) と、セッション解析 (getCurrentUser) を利用します。
+ * 内部ライブラリ・DB層のインポート
  */
 import { authApp, AUTH_CONFIG, getCurrentUser } from './lib/auth'
+import { fetchCafesByContext } from './db/queries' // 👈 追加：DBクエリ関数の導入
 
 // -----------------------------------------------------------------------------
 // 1. 環境変数定義 (Bindings)
 // -----------------------------------------------------------------------------
 
-/**
- * Cloudflare Workers / D1 のバインディング定義
- */
 type Bindings = {
   ALETHEIA_PROTO_DB: D1Database
   GOOGLE_CLIENT_ID: string
   GOOGLE_CLIENT_SECRET: string
+  NODE_ENV: string
 }
 
 const app = new Hono<{ Bindings: Bindings }>()
@@ -51,33 +58,14 @@ const app = new Hono<{ Bindings: Bindings }>()
 // 2. ミドルウェア設定 (Middleware)
 // -----------------------------------------------------------------------------
 
-/**
- * 全てのルート ('*') に対して共通レイアウト (renderer) を適用
- * 各ハンドラーで c.render() を呼び出すことで統一された HTML 構造を出力します
- */
 app.use('*', renderer)
 
 // -----------------------------------------------------------------------------
 // 3. ルーティング (Routes & Sub-Apps)
 // -----------------------------------------------------------------------------
 
-/**
- * [認証系] 
- * Google OAuth2 / ログアウト / 退会 処理をマウント
- */
 app.route('/', authApp)
-
-/**
- * [開発用]
- * サンドボックス環境 (/_sandbox/*)
- */
 app.route('/_sandbox', sandboxApp)
-
-/**
- * 💡 今後の拡張ポイント：
- * 特定のパスにログイン必須の制限をかける場合、
- * ここに認証 Middleware を記述します。
- */
 
 // -----------------------------------------------------------------------------
 // 4. ページレンダリング (Page Rendering)
@@ -85,17 +73,29 @@ app.route('/_sandbox', sandboxApp)
 
 /**
  * トップページ
- * Cookie からセッションを取得し、DB 照合を経てユーザー情報を Top ページに渡します
+ * 認証情報とDB実データを並列で取得し、統合されたビューを提供します。
  */
 app.get('/', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
-  
-  // セッション有効性を確認し、ユーザー情報を取得（未ログイン時は null）
-  const user = await getCurrentUser(db, sessionUserId)
 
-  // Top.tsx へユーザー情報を Props として注入し、レンダリングを実行
-  return c.render(<Top user={user} env={c.env} />, { title: 'メインポータル' })
+  // 1. ユーザー情報とカフェデータを並列で取得（パフォーマンス最適化）
+  const [user, cafeResult] = await Promise.all([
+    getCurrentUser(db, sessionUserId),
+    fetchCafesByContext(db) // デフォルト条件（全エリア・全キーワード）で取得
+  ])
+
+  // 2. レンダリング
+  // Top.tsx に対して、実データ(cafes)と総件数(totalCount)を渡します
+  return c.render(
+    <Top 
+      user={user} 
+      env={c.env} 
+      cafes={cafeResult.cafes} 
+      totalCount={cafeResult.totalCount} 
+    />, 
+    { title: 'メインポータル' }
+  )
 })
 
 export default app
