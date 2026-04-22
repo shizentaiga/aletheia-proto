@@ -95,7 +95,7 @@ app.get('/', async (c) => {
   const user = await getCurrentUser(db, sessionUserId)
 
   // Top.tsx へユーザー情報を Props として注入し、レンダリングを実行
-  return c.render(<Top user={user} />, { title: 'メインポータル' })
+  return c.render(<Top user={user} env={c.env} />, { title: 'メインポータル' })
 })
 
 export default app
