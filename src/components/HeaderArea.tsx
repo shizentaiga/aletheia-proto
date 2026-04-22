@@ -15,18 +15,26 @@ import { STYLES, SPACE } from '../styles/theme'
 // -----------------------------------------------------------------------------
 
 const DESIGN_CONFIG = {
-  LOGO: {
-    FONT_SIZE: '1.1rem',
-    WEIGHT: 800,
-    LETTER_SPACING: '-0.02em',
+  HEADER: {
+    HEIGHT: '72px',
+    BG: 'rgba(255,255,255,0.9)',
+    BLUR: 'blur(8px)',
+    BORDER_BOTTOM: '1px solid #f3f3f3',
   },
-  SLOGAN: {
-    FONT_SIZE: '0.85rem',
-    COLOR: '#999',
-    WEIGHT: 400,
+  LOGO: {
+    // 案B: 知的・哲学的なニュアンスを持つセリフ体
+    FONT_FAMILY: '"Times New Roman", "Georgia", serif', 
+    FONT_SIZE: '1.2rem',     // セリフ体は細身に見えるため、少しサイズをアップ
+    WEIGHT: 400,            // 重厚感よりは「しなやかさ」を優先
+    COLOR: '#111',
+    LETTER_SPACING: '0.05em', // セリフ体特有の美しさを出すため、少し広めに
   },
   NAV: {
-    FONT_SIZE: '0.85rem',
+    FONT_SIZE: '0.82rem',
+    FONT_WEIGHT: 500,
+    TEXT_COLOR: '#222',
+    BG: '#fff',
+    BORDER: '1px solid #eee',
     LOGOUT_COLOR: '#666',
   }
 } as const;
@@ -37,9 +45,8 @@ const DESIGN_CONFIG = {
 
 const UI_COPY = {
   BRAND_NAME: 'ALETHEIA',
-  SLOGAN: '〜つながりは、偶然から。〜',
   AUTH: {
-    START: 'はじめる',
+    LOGIN: 'ログイン',
     LOGOUT: 'ログアウト',
   }
 } as const;
@@ -63,26 +70,26 @@ interface HeaderAreaProps {
 
 export const HeaderArea = ({ user }: HeaderAreaProps) => {
   return (
-    <header style={STYLES.LAYOUT.HEADER}>
-      {/* ブランドロゴ・スローガン */}
+    <header style={{ 
+      ...STYLES.LAYOUT.HEADER,
+      height: DESIGN_CONFIG.HEADER.HEIGHT,
+      borderBottom: DESIGN_CONFIG.HEADER.BORDER_BOTTOM,
+      background: DESIGN_CONFIG.HEADER.BG,
+      backdropFilter: DESIGN_CONFIG.HEADER.BLUR,
+    }}>
+      {/* 1. ブランドロゴ（案B: 知的・哲学的なセリフ体） */}
       <h1 style={{ 
+        fontFamily: DESIGN_CONFIG.LOGO.FONT_FAMILY,
         fontSize: DESIGN_CONFIG.LOGO.FONT_SIZE, 
         fontWeight: DESIGN_CONFIG.LOGO.WEIGHT, 
         margin: 0, 
-        letterSpacing: DESIGN_CONFIG.LOGO.LETTER_SPACING 
+        letterSpacing: DESIGN_CONFIG.LOGO.LETTER_SPACING,
+        color: DESIGN_CONFIG.LOGO.COLOR
       }}>
-        {UI_COPY.BRAND_NAME} 
-        <span style={{ 
-          fontWeight: DESIGN_CONFIG.SLOGAN.WEIGHT, 
-          color: DESIGN_CONFIG.SLOGAN.COLOR, 
-          marginLeft: SPACE.XS, 
-          fontSize: DESIGN_CONFIG.SLOGAN.FONT_SIZE 
-        }}>
-          {UI_COPY.SLOGAN}
-        </span>
+        {UI_COPY.BRAND_NAME}
       </h1>
 
-      {/* ナビゲーション（認証状態により切り替え） */}
+      {/* 2. ナビゲーション（世界観を統一したログインボタン） */}
       <nav>
         {user ? (
           <a 
@@ -98,9 +105,18 @@ export const HeaderArea = ({ user }: HeaderAreaProps) => {
         ) : (
           <a 
             href={NAV_PATHS.GOOGLE_LOGIN} 
-            style={STYLES.COMPONENTS.AUTH_BTN}
+            style={{
+              padding: '8px 14px',
+              borderRadius: '999px',
+              border: DESIGN_CONFIG.NAV.BORDER,
+              textDecoration: 'none',
+              color: DESIGN_CONFIG.NAV.TEXT_COLOR,
+              fontSize: DESIGN_CONFIG.NAV.FONT_SIZE,
+              fontWeight: DESIGN_CONFIG.NAV.FONT_WEIGHT,
+              background: DESIGN_CONFIG.NAV.BG,
+            }}
           >
-            {UI_COPY.AUTH.START}
+            {UI_COPY.AUTH.LOGIN}
           </a>
         )}
       </nav>
