@@ -39,9 +39,9 @@ const UI_COPY = {
   PLACEHOLDER: '店舗名・特徴（Wi-Fi、静かなど）で検索...',
   SEARCH_LABEL: '🔍',
   AREAS: [
+    { label: '全国', value: 'all' },
     { label: '東京', value: 'tokyo' },
     { label: '関東', value: 'kanto' },
-    { label: '全国', value: 'all' },
   ],
   STATION_CHIPS: ['渋谷', '新宿', '池袋']
 } as const;
@@ -63,14 +63,12 @@ export const SearchSection = () => {
         overflowX: 'auto',
         paddingBottom: '4px'
       }}>
-        {/* 地域選択セレクト 
-            修正点: IDを付与し、下のフォーム送信時にこの値も含まれるようにします。
-        */}
+        {/* 地域選択セレクト */}
         <select 
           id="region-select"
           name="region"
           style={{ ...STYLES.COMPONENTS.SELECT, width: 'auto', minWidth: '80px' }}
-          hx-get="./search"
+          hx-get="/search"
           hx-trigger="change"
           hx-target="#cafe-list-container"
           hx-include="[name='keyword']"
@@ -83,7 +81,7 @@ export const SearchSection = () => {
           ))}
         </select>
 
-        {/* 主要駅チップ：相対パス ./search を指定して確実にパスを通す */}
+        {/* 主要駅チップ：パスを絶対パス /search に変更 */}
         {UI_COPY.STATION_CHIPS.map((station) => (
           <button 
             key={station}
@@ -98,9 +96,9 @@ export const SearchSection = () => {
               cursor: 'pointer',
               whiteSpace: 'nowrap'
             }}
-            hx-get="./search"
+            hx-get="/search"
             hx-vals={`{"keyword": "${station}"}`}
-            hx-include="#region-select" // チップクリック時も選択中の地域を引き継ぐ
+            hx-include="#region-select"
             hx-target="#cafe-list-container"
             hx-push-url="true"
           >
@@ -109,16 +107,14 @@ export const SearchSection = () => {
         ))}
       </div>
 
-      {/* 2段目：自由検索（formタグを導入） */}
-      {/* hx-trigger="submit" にすることで、
-          Enterキー押下時と検索ボタン押下時の両方を一括でハンドリングします。
-      */}
+      {/* 2段目：自由検索 */}
       <form 
         style={STYLES.LAYOUT.SEARCH_BOX}
-        hx-get="./search"
+        hx-get="/search"
         hx-trigger="submit"
-        hx-target="#cafe-list-container"
-        hx-include="#region-select" // 👈 修正: 検索実行時にセレクトボックスの値も強制的に含める
+        // 修正ポイント: 検索時は中身の継ぎ足しではなく、リストエリア全体を差し替える
+        hx-target="#cafe-list-container" 
+        hx-include="#region-select"
         hx-push-url="true"
       >
         <input 

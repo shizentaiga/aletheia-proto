@@ -26,15 +26,8 @@ import { renderer } from './renderer'
 import { Top, CafeList } from './pages/Top'
 import { sandboxApp } from './_sandbox/_router'
 
-/**
- * 内部ライブラリ・DB層のインポート
- */
 import { authApp, AUTH_CONFIG, getCurrentUser } from './lib/auth'
 import { fetchCafesByContext } from './db/queries'
-
-// -----------------------------------------------------------------------------
-// 1. 環境変数定義 (Bindings)
-// -----------------------------------------------------------------------------
 
 type Bindings = {
   ALETHEIA_PROTO_DB: D1Database
@@ -45,32 +38,20 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>()
 
-// -----------------------------------------------------------------------------
-// 2. ミドルウェア設定 (Middleware)
-// -----------------------------------------------------------------------------
-
+// 1. renderer はフルリロード時のみ適用されるよう、通常は app.use で良いですが
+//    HTMX リクエスト時は c.render を使わないことで回避します。
 app.use('*', renderer)
-
-// -----------------------------------------------------------------------------
-// 3. ルーティング (Routes & Sub-Apps)
-// -----------------------------------------------------------------------------
 
 app.route('/', authApp)
 app.route('/_sandbox', sandboxApp)
 
-// -----------------------------------------------------------------------------
-// 4. ページレンダリング (Page Rendering)
-// -----------------------------------------------------------------------------
-
 /**
  * [GET] /
- * トップページ（フルリロード時）
  */
 app.get('/', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
 
-  // 1. Cloudflareから位置情報を取得（デバッグ・UIヒント用）
   const cf = c.req.raw.cf as any 
   const locationInfo = {
     region: cf?.region || 'unknown',
@@ -78,25 +59,20 @@ app.get('/', async (c) => {
     colo: cf?.colo || 'unknown'
   }
 
-  // 2. クエリパラメータから検索条件・オフセットを厳密に取得
   const keyword = c.req.query('keyword')
   const queryRegion = c.req.query('region') 
-  const offset = parseInt(c.req.query('offset') || '0', 10) // 👈 追加：オフセットの取得
+  const offset = parseInt(c.req.query('offset') || '0', 10)
 
-  /**
-   * アルゴリズムの修正：
-   * fetchCafesByContext には「現在地(cf.region)」を自動で合成しない。
-   * これにより、デフォルトの分母は常に「全国」となる。
-   */
   const [user, cafeResult] = await Promise.all([
     getCurrentUser(db, sessionUserId),
     fetchCafesByContext(db, { 
       keyword, 
       region: queryRegion,
-      offset // 👈 追加：取得したオフセットを適用
+      offset
     })
   ])
 
+  // フルレンダリング
   return c.render(
     <Top 
       user={user} 
@@ -104,8 +80,8 @@ app.get('/', async (c) => {
       cafes={cafeResult.cafes} 
       totalCount={cafeResult.totalCount}
       location={locationInfo}
-      keyword={keyword}      // 👈 修正：Topコンポーネントへ引き継ぐ
-      region={queryRegion}    // 👈 修正：Topコンポーネントへ引き継ぐ
+      keyword={keyword}
+      region={queryRegion}
     />, 
     { title: 'メインポータル' }
   )
@@ -122,20 +98,25 @@ app.get('/search', async (c) => {
   const queryRegion = c.req.query('region') 
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
-  // HTMX側でも同様に、現在地による自動フィルタを撤廃
   const { cafes, totalCount } = await fetchCafesByContext(db, { 
     keyword, 
     offset,
     region: queryRegion 
   })
 
+  /**
+   * 💡 重要：
+   * 検索フォーム（SearchSection）から offset=0 でリクエストが来た場合は、
+   * リスト全体をリセットするために「ヘッダー」や「ボタン」も含む初期状態を返す必要があります。
+   * 「もっと見る」の時（offset > 0）は OOB Swap が発動して既存のボタンを置換します。
+   */
   return c.html(
     <CafeList 
       cafes={cafes} 
       totalCount={totalCount} 
       offset={offset} 
       keyword={keyword} 
-      region={queryRegion} // 👈 修正：次のもっと見るボタンに地域情報を引き継ぐ
+      region={queryRegion}
     />
   )
 })

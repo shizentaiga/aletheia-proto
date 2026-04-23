@@ -70,16 +70,21 @@ interface CafeListProps {
   totalCount: number;
   offset?: number;
   keyword?: string;
-  region?: string; // 地域指定も引き継げるように追加
+  region?: string;
 }
 
+/**
+ * 修正ポイント: 
+ * 外枠の div#cafe-cards を含めず、カードの配列のみを返します。
+ * これにより hx-select="#cafe-cards > *" で子要素だけを綺麗に継ぎ足せます。
+ */
 export const CafeList = ({ cafes, totalCount, offset = 0, keyword, region }: CafeListProps) => {
   const currentDisplayCount = offset + cafes.length;
   const hasMore = currentDisplayCount < totalCount;
 
   return (
     <>
-      {/* OOB (Out of Band) Swap: ヘッダーの件数表示を更新 */}
+      {/* OOB Swap: ヘッダーの件数表示を更新 */}
       <div id="list-header" hx-swap-oob="true" style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -102,20 +107,18 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword, region }: Caf
         </h2>
       </div>
 
-      {/* 新しいカードのリスト (hx-select でここだけが抽出される) */}
-      <div id="cafe-cards">
-        {cafes.map((cafe, index) => (
-          <CafeCard 
-            key={cafe.service_id || `${offset}-${index}`}
-            title={cafe.title}
-            address={cafe.address}
-          />
-        ))}
-      </div>
-
-      {/* OOB Swap: ボタンコンテナ自体を新しい offset 値で書き換える。
-          これにより、ボタンの中にボタンが入る不具合を防止し、常に最新のパラメータを保持できる。
+      {/* カード本体のレンダリング
+         注: ここで ID を持った親 div で囲まず、フラグメントで展開します。
       */}
+      {cafes.map((cafe, index) => (
+        <CafeCard 
+          key={cafe.service_id || `${offset}-${index}`}
+          title={cafe.title}
+          address={cafe.address}
+        />
+      ))}
+
+      {/* OOB Swap: ボタンコンテナ自体を新しい offset 値で書き換える */}
       <div id="more-button-container" hx-swap-oob="true" style={{ textAlign: 'center', marginTop: SPACE.MD }}>
         {hasMore ? (
           <button
@@ -133,12 +136,12 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword, region }: Caf
             hx-target="#cafe-cards"
             hx-swap="beforeend"
             hx-indicator="#loading-spinner"
-            hx-select="#cafe-cards > *" 
+            // 返ってきた HTML 全体の中から「カード（CafeCard）」に相当する部分だけを抽出
+            hx-select="a" 
           >
             {UI_COPY.MORE_LABEL}
           </button>
         ) : (
-          /* 次がない場合は空にしてボタンを消去 */
           <div id="more-button-container"></div>
         )}
       </div>
@@ -162,8 +165,8 @@ interface TopProps {
   cafes?: Cafe[];
   totalCount?: number;
   location?: LocationInfo;
-  keyword?: string; // 追加
-  region?: string;  // 追加
+  keyword?: string;
+  region?: string;
 }
 
 export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword, region }: TopProps) => {
@@ -179,13 +182,19 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword, 
           <SearchSection />
 
           <main style={STYLES.LAYOUT.LIST} id="cafe-list-container">
-            {/* keyword と region を CafeList に渡して初期ボタンのパラメータを確定させる */}
-            <CafeList 
-              cafes={cafes} 
-              totalCount={totalCount} 
-              keyword={keyword} 
-              region={region} 
-            />
+            {/* ベースとなるコンテナをここに固定。
+              CafeList はこの中の「中身」だけを管理する。
+            */}
+            <div id="list-header"></div>
+            <div id="cafe-cards">
+              <CafeList 
+                cafes={cafes} 
+                totalCount={totalCount} 
+                keyword={keyword} 
+                region={region} 
+              />
+            </div>
+            <div id="more-button-container"></div>
           </main>
           
           <footer style={{ textAlign: 'center', padding: SPACE.LG, marginTop: SPACE.XL }}>
