@@ -63,10 +63,18 @@ export const SearchSection = () => {
         overflowX: 'auto',
         paddingBottom: '4px'
       }}>
-        {/* 地域選択セレクト */}
+        {/* 地域選択セレクト 
+            修正点: IDを付与し、下のフォーム送信時にこの値も含まれるようにします。
+        */}
         <select 
+          id="region-select"
           name="region"
           style={{ ...STYLES.COMPONENTS.SELECT, width: 'auto', minWidth: '80px' }}
+          hx-get="./search"
+          hx-trigger="change"
+          hx-target="#cafe-list-container"
+          hx-include="[name='keyword']"
+          hx-push-url="true"
         >
           {UI_COPY.AREAS.map((area) => (
             <option key={area.value} value={area.value}>
@@ -92,6 +100,7 @@ export const SearchSection = () => {
             }}
             hx-get="./search"
             hx-vals={`{"keyword": "${station}"}`}
+            hx-include="#region-select" // チップクリック時も選択中の地域を引き継ぐ
             hx-target="#cafe-list-container"
             hx-push-url="true"
           >
@@ -109,6 +118,7 @@ export const SearchSection = () => {
         hx-get="./search"
         hx-trigger="submit"
         hx-target="#cafe-list-container"
+        hx-include="#region-select" // 👈 修正: 検索実行時にセレクトボックスの値も強制的に含める
         hx-push-url="true"
       >
         <input 

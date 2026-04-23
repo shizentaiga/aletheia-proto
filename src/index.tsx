@@ -78,9 +78,10 @@ app.get('/', async (c) => {
     colo: cf?.colo || 'unknown'
   }
 
-  // 2. クエリパラメータから検索条件を厳密に取得
+  // 2. クエリパラメータから検索条件・オフセットを厳密に取得
   const keyword = c.req.query('keyword')
-  const queryRegion = c.req.query('region') // 明示的に指定された場合のみ値が入る
+  const queryRegion = c.req.query('region') 
+  const offset = parseInt(c.req.query('offset') || '0', 10) // 👈 追加：オフセットの取得
 
   /**
    * アルゴリズムの修正：
@@ -91,7 +92,8 @@ app.get('/', async (c) => {
     getCurrentUser(db, sessionUserId),
     fetchCafesByContext(db, { 
       keyword, 
-      region: queryRegion // 👈 queryRegion が undefined なら全件検索される
+      region: queryRegion,
+      offset // 👈 追加：取得したオフセットを適用
     })
   ])
 
@@ -101,7 +103,9 @@ app.get('/', async (c) => {
       env={c.env} 
       cafes={cafeResult.cafes} 
       totalCount={cafeResult.totalCount}
-      location={locationInfo} // locationInfo は UI 側での「おすすめ表示」等に活用
+      location={locationInfo}
+      keyword={keyword}      // 👈 修正：Topコンポーネントへ引き継ぐ
+      region={queryRegion}    // 👈 修正：Topコンポーネントへ引き継ぐ
     />, 
     { title: 'メインポータル' }
   )
@@ -118,7 +122,7 @@ app.get('/search', async (c) => {
   const queryRegion = c.req.query('region') 
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
-  // 👈 HTMX側でも同様に、現在地による自動フィルタを撤廃
+  // HTMX側でも同様に、現在地による自動フィルタを撤廃
   const { cafes, totalCount } = await fetchCafesByContext(db, { 
     keyword, 
     offset,
@@ -131,6 +135,7 @@ app.get('/search', async (c) => {
       totalCount={totalCount} 
       offset={offset} 
       keyword={keyword} 
+      region={queryRegion} // 👈 修正：次のもっと見るボタンに地域情報を引き継ぐ
     />
   )
 })

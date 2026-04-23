@@ -57,7 +57,7 @@ const UI_COPY = {
   LIST_TITLE: '近くのカフェ',
   RESULTS_LABEL: '件を表示中', 
   TOTAL_PREFIX: '/',
-  MORE_LABEL: 'さらに読み込む(⭐️不具合中のため動作不可)',
+  MORE_LABEL: 'さらに読み込む',
   COPYRIGHT: '© 2026 ALETHEIA PROJECT'
 } as const;
 
@@ -70,14 +70,16 @@ interface CafeListProps {
   totalCount: number;
   offset?: number;
   keyword?: string;
+  region?: string; // 地域指定も引き継げるように追加
 }
 
-export const CafeList = ({ cafes, totalCount, offset = 0, keyword }: CafeListProps) => {
+export const CafeList = ({ cafes, totalCount, offset = 0, keyword, region }: CafeListProps) => {
   const currentDisplayCount = offset + cafes.length;
   const hasMore = currentDisplayCount < totalCount;
 
   return (
     <>
+      {/* OOB (Out of Band) Swap: ヘッダーの件数表示を更新 */}
       <div id="list-header" hx-swap-oob="true" style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -100,6 +102,7 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword }: CafeListPro
         </h2>
       </div>
 
+      {/* 新しいカードのリスト (hx-select でここだけが抽出される) */}
       <div id="cafe-cards">
         {cafes.map((cafe, index) => (
           <CafeCard 
@@ -110,23 +113,33 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword }: CafeListPro
         ))}
       </div>
 
-      <div id="more-button-container" style={{ textAlign: 'center', marginTop: SPACE.MD }}>
-        {hasMore && (
+      {/* OOB Swap: ボタンコンテナ自体を新しい offset 値で書き換える。
+          これにより、ボタンの中にボタンが入る不具合を防止し、常に最新のパラメータを保持できる。
+      */}
+      <div id="more-button-container" hx-swap-oob="true" style={{ textAlign: 'center', marginTop: SPACE.MD }}>
+        {hasMore ? (
           <button
             style={{
               ...PAGE_DESIGN.MORE_BTN,
               cursor: 'pointer',
               width: '100%'
             }}
-            hx-get="./search"
-            hx-vals={`{"offset": ${offset + DISPLAY_LIMIT}, "keyword": "${keyword || ''}"}`}
+            hx-get="/search"
+            hx-vals={JSON.stringify({ 
+              offset: offset + DISPLAY_LIMIT, 
+              keyword: keyword || '',
+              region: region || ''
+            })}
             hx-target="#cafe-cards"
             hx-swap="beforeend"
             hx-indicator="#loading-spinner"
-            hx-select="#cafe-cards > *, #more-button-container"
+            hx-select="#cafe-cards > *" 
           >
             {UI_COPY.MORE_LABEL}
           </button>
+        ) : (
+          /* 次がない場合は空にしてボタンを消去 */
+          <div id="more-button-container"></div>
         )}
       </div>
     </>
@@ -137,7 +150,6 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword }: CafeListPro
 // 5. メイン・ビュー
 // -----------------------------------------------------------------------------
 
-// DebugMonitorと型を合わせる
 interface LocationInfo {
   region: string;
   city: string;
@@ -149,15 +161,13 @@ interface TopProps {
   env?: any;
   cafes?: Cafe[];
   totalCount?: number;
-  location?: LocationInfo; // 👈 location を追加
+  location?: LocationInfo;
+  keyword?: string; // 追加
+  region?: string;  // 追加
 }
 
-export const Top = ({ user, env, cafes = [], totalCount = 0, location }: TopProps) => {
+export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword, region }: TopProps) => {
   const isDev = env?.NODE_ENV === 'development';
-  
-  // URLから現在の検索キーワードを取得（「もっと見る」ボタンに引き継ぐため）
-  // サーバーサイドレンダリング時の Context から取得するか、props を拡張して渡すのが安全です。
-  // ここでは index.tsx から keyword プロパティも受け取れるように TopProps を想定します。
   
   return (
     <div style={STYLES.LAYOUT.WRAPPER}>
@@ -169,11 +179,20 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location }: TopProp
           <SearchSection />
 
           <main style={STYLES.LAYOUT.LIST} id="cafe-list-container">
-            {/* 👈 修正：CafeList に keyword（もしあれば）を渡す */}
-            <CafeList cafes={cafes} totalCount={totalCount} />
+            {/* keyword と region を CafeList に渡して初期ボタンのパラメータを確定させる */}
+            <CafeList 
+              cafes={cafes} 
+              totalCount={totalCount} 
+              keyword={keyword} 
+              region={region} 
+            />
           </main>
           
-          {/* --- フッター等略 --- */}
+          <footer style={{ textAlign: 'center', padding: SPACE.LG, marginTop: SPACE.XL }}>
+            <p style={PAGE_DESIGN.FOOTER}>
+              {UI_COPY.COPYRIGHT}
+            </p>
+          </footer>
         </div>
       </div>
     </div>
