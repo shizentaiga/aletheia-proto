@@ -9,12 +9,13 @@
 
 //** @jsxImportSource hono/jsx */
 
+//** @jsxImportSource hono/jsx */
+
 // -----------------------------------------------------------------------------
 // 1. 外部依存・デザインシステム
 // -----------------------------------------------------------------------------
 import { STYLES, SPACE } from '../styles/theme'
 import type { Cafe } from '../db/queries'
-import { DISPLAY_LIMIT } from '../db/queries'
 
 // -----------------------------------------------------------------------------
 // 2. サブ・コンポーネント
@@ -27,7 +28,7 @@ import { CafeCard } from '../components/CafeCard'
 // -----------------------------------------------------------------------------
 // 3. ページ専用設定 (Page-Specific Config)
 // -----------------------------------------------------------------------------
-const PAGE_DESIGN = {
+export const PAGE_DESIGN = {
   SECTION_TITLE: { 
     FONT_SIZE: '0.9rem', 
     COLOR: '#111', 
@@ -72,12 +73,9 @@ interface CafeListProps {
 }
 
 export const CafeList = ({ cafes, totalCount, offset = 0, keyword = '', region = '' }: CafeListProps) => {
-  // test06方式：実際に取得できた件数を足して次の開始位置(nextOffset)を算出
   const nextOffset = offset + cafes.length;
-  // 全件数に達していない場合のみ「もっと見る」を表示
   const hasMore = nextOffset < totalCount;
 
-  // URLパラメータとして安全に渡すための正規化
   const q = keyword || '';
   const r = region || '';
 
@@ -97,7 +95,6 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword = '', region =
         {hasMore ? (
           <button
             style={{ ...PAGE_DESIGN.MORE_BTN, cursor: 'pointer', width: '100%' }}
-            // サーバー(index.tsx)に定義した /search を叩く
             hx-get={`/search?offset=${nextOffset}&keyword=${encodeURIComponent(q)}&region=${encodeURIComponent(r)}`}
             hx-target="closest .more-button-wrapper"
             hx-swap="outerHTML"
@@ -106,7 +103,6 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword = '', region =
             {UI_COPY.MORE_LABEL}
           </button>
         ) : (
-          /* データが0件でない、かつ最後に達した時のみ表示 */
           totalCount > 0 && (
             <p style={{ fontSize: '0.8rem', color: '#ccc', margin: SPACE.MD }}>
               すべてのデータを読み込みました
@@ -165,36 +161,42 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
           <SearchSection />
 
           <main style={STYLES.LAYOUT.LIST} id="cafe-list-container">
-            <div id="list-header" style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center', 
-              marginBottom: SPACE.SM 
-            }}>
-              <h2 style={{ 
-                fontSize: PAGE_DESIGN.SECTION_TITLE.FONT_SIZE, 
-                color: PAGE_DESIGN.SECTION_TITLE.COLOR, 
-                fontWeight: PAGE_DESIGN.SECTION_TITLE.WEIGHT 
+            {/* 💡 修正ポイント: 
+              件数表示ヘッダーとリストを一つの div で囲み、
+              新規検索時の HTMX ターゲットをここ（#search-results-area）にします。
+            */}
+            <div id="search-results-area">
+              <div id="list-header" style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                marginBottom: SPACE.SM 
               }}>
-                {UI_COPY.LIST_TITLE} 
-                <span style={{ 
-                  color: PAGE_DESIGN.COUNTER.COLOR, 
-                  fontWeight: PAGE_DESIGN.COUNTER.WEIGHT, 
-                  marginLeft: SPACE.XS 
+                <h2 style={{ 
+                  fontSize: PAGE_DESIGN.SECTION_TITLE.FONT_SIZE, 
+                  color: PAGE_DESIGN.SECTION_TITLE.COLOR, 
+                  fontWeight: PAGE_DESIGN.SECTION_TITLE.WEIGHT 
                 }}>
-                  全 {totalCount} 件
-                </span>
-              </h2>
-            </div>
+                  {UI_COPY.LIST_TITLE} 
+                  <span style={{ 
+                    color: PAGE_DESIGN.COUNTER.COLOR, 
+                    fontWeight: PAGE_DESIGN.COUNTER.WEIGHT, 
+                    marginLeft: SPACE.XS 
+                  }}>
+                    全 {totalCount} 件
+                  </span>
+                </h2>
+              </div>
 
-            <div id="cafe-cards-root">
-              <CafeList 
-                cafes={cafes} 
-                totalCount={totalCount} 
-                keyword={keyword} 
-                region={region} 
-                offset={0}
-              />
+              <div id="cafe-cards-root">
+                <CafeList 
+                  cafes={cafes} 
+                  totalCount={totalCount} 
+                  keyword={keyword} 
+                  region={region} 
+                  offset={0}
+                />
+              </div>
             </div>
           </main>
           

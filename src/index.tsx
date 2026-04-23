@@ -23,7 +23,8 @@
 import { Hono } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { renderer } from './renderer'
-import { Top, CafeList } from './pages/Top'
+import { Top, CafeList, PAGE_DESIGN } from './pages/Top' // PAGE_DESIGN をインポート
+import { SPACE } from './styles/theme'
 import { sandboxApp } from './_sandbox/_router'
 
 import { authApp, AUTH_CONFIG, getCurrentUser } from './lib/auth'
@@ -38,15 +39,12 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>()
 
-// 1. renderer はフルリロード時のみ適用
 app.use('*', renderer)
-
 app.route('/', authApp)
 app.route('/_sandbox', sandboxApp)
 
 /**
  * [GET] /
- * 初回アクセス時：フルレンダリング
  */
 app.get('/', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
@@ -59,18 +57,13 @@ app.get('/', async (c) => {
     colo: cf?.colo || 'unknown'
   }
 
-  // 修正：undefined を許容せず空文字に倒す（SQLでの意図しないマッチを防ぐ）
   const keyword = c.req.query('keyword') || ''
   const region = c.req.query('region') || '' 
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
   const [user, cafeResult] = await Promise.all([
     getCurrentUser(db, sessionUserId),
-    fetchCafesByContext(db, { 
-      keyword, 
-      region,
-      offset
-    })
+    fetchCafesByContext(db, { keyword, region, offset })
   ])
 
   return c.render(
@@ -89,25 +82,61 @@ app.get('/', async (c) => {
 
 /**
  * [GET] /search
- * HTMX専用：部分更新（増築型 Block 返却）
+ * HTMX専用：部分更新
  */
 app.get('/search', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   
-  // 修正：ここでも region を空文字に。'all' などの固定文字を入れない。
   const keyword = c.req.query('keyword') || ''
   const region = c.req.query('region') || ''
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
-  // DBから該当するカフェデータを取得
   const { cafes, totalCount } = await fetchCafesByContext(db, { 
     keyword, 
     offset,
     region 
   })
 
-  // 核心：受け取った値を一文字も漏らさず CafeList へ「リレー」する
-  // これにより CafeList 内の「さらに読み込む」ボタンに正しいクエリが埋まる
+  // 💡 核心：offset=0（新規検索）の時だけ件数ヘッダーを含めて返す
+  if (offset === 0) {
+    return c.html(
+      <>
+        <div id="list-header" style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          marginBottom: SPACE.SM 
+        }}>
+          <h2 style={{ 
+            fontSize: PAGE_DESIGN.SECTION_TITLE.FONT_SIZE, 
+            color: PAGE_DESIGN.SECTION_TITLE.COLOR, 
+            fontWeight: PAGE_DESIGN.SECTION_TITLE.WEIGHT 
+          }}>
+            近くのカフェ 
+            <span style={{ 
+              color: PAGE_DESIGN.COUNTER.COLOR, 
+              fontWeight: PAGE_DESIGN.COUNTER.WEIGHT, 
+              marginLeft: SPACE.XS 
+            }}>
+              全 {totalCount} 件
+            </span>
+          </h2>
+        </div>
+
+        <div id="cafe-cards-root">
+          <CafeList 
+            cafes={cafes} 
+            totalCount={totalCount} 
+            offset={offset} 
+            keyword={keyword} 
+            region={region}
+          />
+        </div>
+      </>
+    )
+  }
+
+  // 💡 offset > 0（さらに読み込む）の時は CafeList だけを返す（追記モード）
   return c.html(
     <CafeList 
       cafes={cafes} 

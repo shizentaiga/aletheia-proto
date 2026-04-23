@@ -37,7 +37,7 @@ const UI_COPY = {
   PLACEHOLDER: '店舗名・特徴（Wi-Fi、静かなど）で検索...',
   SEARCH_LABEL: '🔍',
   AREAS: [
-    { label: '全国', value: 'all' },
+    { label: '全国', value: '' }, // 👈 空文字にすることでDB側での「全件マッチ」を確実に
     { label: '東京', value: 'tokyo' },
     { label: '関東', value: 'kanto' },
   ],
@@ -50,13 +50,12 @@ const UI_COPY = {
 export const SearchSection = () => {
   /**
    * 💡 修正ポイント:
-   * 検索時は常に offset=0 から開始することを明示するため、
-   * hx-get に直接パラメータを載せるのではなく、input/select の値を
-   * まとめて送信する構成にします。
+   * ターゲットを `#search-results-area` に変更。
+   * これにより、リストだけでなく「全 XX 件」というヘッダーも同時に更新されます。
    */
   const COMMON_HX_ATTRS = {
     'hx-get': "/search",
-    'hx-target': "#cafe-cards-root",
+    'hx-target': "#search-results-area", // 👈 ターゲットを広範囲エリアに変更
     'hx-swap': "innerHTML",
     'hx-push-url': "true",
   };
@@ -64,7 +63,7 @@ export const SearchSection = () => {
   return (
     <div style={{ ...STYLES.LAYOUT.STICKY_BAR, flexDirection: 'column', alignItems: 'stretch' }}>
       
-      {/* 1段目：エリアコンテキスト */}
+      {/* 1段目：クイックアクセス（チップ） */}
       <div style={{ 
         display: 'flex', 
         gap: SPACE.XS, 
@@ -73,23 +72,6 @@ export const SearchSection = () => {
         overflowX: 'auto',
         paddingBottom: '4px'
       }}>
-        {/* 地域選択セレクト: 変更時にキーワード入力欄の値も一緒に送る */}
-        <select 
-          id="region-select"
-          name="region"
-          style={{ ...STYLES.COMPONENTS.SELECT, width: 'auto', minWidth: '80px' }}
-          {...COMMON_HX_ATTRS}
-          hx-trigger="change"
-          hx-include="#keyword-input" 
-        >
-          {UI_COPY.AREAS.map((area) => (
-            <option key={area.value} value={area.value}>
-              {area.label}
-            </option>
-          ))}
-        </select>
-
-        {/* 主要駅チップ: test06方式に従い、URLにパラメータを固定して飛ばす */}
         {UI_COPY.STATION_CHIPS.map((station) => (
           <button 
             key={station}
@@ -104,11 +86,10 @@ export const SearchSection = () => {
               cursor: 'pointer',
               whiteSpace: 'nowrap'
             }}
-            // チップクリック時はその駅名でリセット。offset=0を明示。
-            hx-get={`/search?keyword=${encodeURIComponent(station)}&offset=0`}
+            // チップクリック時も件数表示を含めて更新
+            hx-get={`/search?keyword=${encodeURIComponent(station)}&offset=0&region=`}
             hx-target={COMMON_HX_ATTRS['hx-target']}
             hx-swap={COMMON_HX_ATTRS['hx-swap']}
-            hx-include="#region-select"
             hx-push-url="true"
           >
             {station}
@@ -116,13 +97,25 @@ export const SearchSection = () => {
         ))}
       </div>
 
-      {/* 2段目：自由検索フォーム */}
+      {/* 2段目：メイン検索フォーム */}
       <form 
         style={STYLES.LAYOUT.SEARCH_BOX}
         {...COMMON_HX_ATTRS}
-        hx-trigger="submit"
-        hx-include="#region-select"
+        hx-trigger="submit, change from:#region-select"
       >
+        {/* 地域選択セレクト */}
+        <select 
+          id="region-select"
+          name="region"
+          style={{ ...STYLES.COMPONENTS.SELECT, width: 'auto', minWidth: '80px', marginRight: SPACE.XS }}
+        >
+          {UI_COPY.AREAS.map((area) => (
+            <option key={area.value} value={area.value}>
+              {area.label}
+            </option>
+          ))}
+        </select>
+
         <input 
           id="keyword-input"
           type="text" 
@@ -130,7 +123,8 @@ export const SearchSection = () => {
           placeholder={UI_COPY.PLACEHOLDER} 
           style={{ ...STYLES.COMPONENTS.INPUT, flex: 1 }} 
         />
-        {/* offsetを0にリセットするための隠しフィールド */}
+        
+        {/* offsetリセット用：検索時は必ず 0 から */}
         <input type="hidden" name="offset" value="0" />
         
         <button 
