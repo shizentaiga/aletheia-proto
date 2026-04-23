@@ -38,8 +38,7 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>()
 
-// 1. renderer はフルリロード時のみ適用されるよう、通常は app.use で良いですが
-//    HTMX リクエスト時は c.render を使わないことで回避します。
+// 1. renderer はフルリロード時のみ適用
 app.use('*', renderer)
 
 app.route('/', authApp)
@@ -47,6 +46,7 @@ app.route('/_sandbox', sandboxApp)
 
 /**
  * [GET] /
+ * 初回アクセス時：フルレンダリング
  */
 app.get('/', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
@@ -59,20 +59,20 @@ app.get('/', async (c) => {
     colo: cf?.colo || 'unknown'
   }
 
-  const keyword = c.req.query('keyword')
-  const queryRegion = c.req.query('region') 
+  // test06方式：undefined を許容せず空文字/デフォルト値に倒す
+  const keyword = c.req.query('keyword') || ''
+  const region = c.req.query('region') || '' // 👈 'all' から空文字へ修正
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
   const [user, cafeResult] = await Promise.all([
     getCurrentUser(db, sessionUserId),
     fetchCafesByContext(db, { 
       keyword, 
-      region: queryRegion,
+      region, // 名称を統一
       offset
     })
   ])
 
-  // フルレンダリング
   return c.render(
     <Top 
       user={user} 
@@ -81,7 +81,7 @@ app.get('/', async (c) => {
       totalCount={cafeResult.totalCount}
       location={locationInfo}
       keyword={keyword}
-      region={queryRegion}
+      region={region}
     />, 
     { title: 'メインポータル' }
   )
@@ -89,34 +89,30 @@ app.get('/', async (c) => {
 
 /**
  * [GET] /search
- * HTMX専用：検索・もっと見る（部分更新）
+ * HTMX専用：部分更新（増築型 Block 返却）
  */
 app.get('/search', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   
-  const keyword = c.req.query('keyword')
-  const queryRegion = c.req.query('region') 
+  // 核心：リクエストから得た値をそのまま文字列として保持
+  const keyword = c.req.query('keyword') || ''
+  const region = c.req.query('region') || 'all'
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
   const { cafes, totalCount } = await fetchCafesByContext(db, { 
     keyword, 
     offset,
-    region: queryRegion 
+    region 
   })
 
-  /**
-   * 💡 重要：
-   * 検索フォーム（SearchSection）から offset=0 でリクエストが来た場合は、
-   * リスト全体をリセットするために「ヘッダー」や「ボタン」も含む初期状態を返す必要があります。
-   * 「もっと見る」の時（offset > 0）は OOB Swap が発動して既存のボタンを置換します。
-   */
+  // 核心：受け取った値を一文字も漏らさず次のコンポーネントへ「リレー」する
   return c.html(
     <CafeList 
       cafes={cafes} 
       totalCount={totalCount} 
       offset={offset} 
       keyword={keyword} 
-      region={queryRegion}
+      region={region}
     />
   )
 })

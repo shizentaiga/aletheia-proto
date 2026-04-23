@@ -27,7 +27,6 @@ import { CafeCard } from '../components/CafeCard'
 // -----------------------------------------------------------------------------
 // 3. ページ専用設定 (Page-Specific Config)
 // -----------------------------------------------------------------------------
-
 const PAGE_DESIGN = {
   SECTION_TITLE: { 
     FONT_SIZE: '0.9rem', 
@@ -62,9 +61,8 @@ const UI_COPY = {
 } as const;
 
 // -----------------------------------------------------------------------------
-// 4. 部分更新用コンポーネント (CafeList)
+// 4. 増築型リストコンポーネント (CafeList)
 // -----------------------------------------------------------------------------
-
 interface CafeListProps {
   cafes: Cafe[];
   totalCount: number;
@@ -75,41 +73,21 @@ interface CafeListProps {
 
 /**
  * 修正ポイント: 
- * 外枠の div#cafe-cards を含めず、カードの配列のみを返します。
- * これにより hx-select="#cafe-cards > *" で子要素だけを綺麗に継ぎ足せます。
+ * test06方式に従い、keyword と region のデフォルト値を空文字に設定し、
+ * URL構築時に確実にリレーされるようにします。
  */
-export const CafeList = ({ cafes, totalCount, offset = 0, keyword, region }: CafeListProps) => {
+export const CafeList = ({ cafes, totalCount, offset = 0, keyword = '', region = '' }: CafeListProps) => {
   const currentDisplayCount = offset + cafes.length;
   const hasMore = currentDisplayCount < totalCount;
+  const nextOffset = offset + cafes.length; // DISPLAY_LIMITではなく実数で計算する方が安全
+
+  // 型安全と確実に値を渡すための変数定義
+  const q = keyword || '';
+  const r = region || 'all';
 
   return (
-    <>
-      {/* OOB Swap: ヘッダーの件数表示を更新 */}
-      <div id="list-header" hx-swap-oob="true" style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: SPACE.SM 
-      }}>
-        <h2 style={{ 
-          fontSize: PAGE_DESIGN.SECTION_TITLE.FONT_SIZE, 
-          color: PAGE_DESIGN.SECTION_TITLE.COLOR, 
-          fontWeight: PAGE_DESIGN.SECTION_TITLE.WEIGHT 
-        }}>
-          {UI_COPY.LIST_TITLE} 
-          <span style={{ 
-            color: PAGE_DESIGN.COUNTER.COLOR, 
-            fontWeight: PAGE_DESIGN.COUNTER.WEIGHT, 
-            marginLeft: SPACE.XS 
-          }}>
-            {currentDisplayCount}{UI_COPY.TOTAL_PREFIX}{totalCount}{UI_COPY.RESULTS_LABEL}
-          </span>
-        </h2>
-      </div>
-
-      {/* カード本体のレンダリング
-         注: ここで ID を持った親 div で囲まず、フラグメントで展開します。
-      */}
+    <div className="cafe-list-block">
+      {/* 1. カード本体のレンダリング */}
       {cafes.map((cafe, index) => (
         <CafeCard 
           key={cafe.service_id || `${offset}-${index}`}
@@ -118,33 +96,31 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword, region }: Caf
         />
       ))}
 
-      {/* OOB Swap: ボタンコンテナ自体を新しい offset 値で書き換える */}
-      <div id="more-button-container" hx-swap-oob="true" style={{ textAlign: 'center', marginTop: SPACE.MD }}>
+      {/* 2. 次の塊を呼び出すボタンエリア */}
+      <div className="more-button-wrapper" style={{ textAlign: 'center', marginTop: SPACE.MD }}>
         {hasMore ? (
           <button
             style={{ ...PAGE_DESIGN.MORE_BTN, cursor: 'pointer', width: '100%' }}
-            // 👈 修正：hx-vals を廃止し、hx-get の URL に直接パラメータを埋め込む
-            hx-get={`/search?offset=${offset + DISPLAY_LIMIT}&keyword=${encodeURIComponent(keyword || '')}&region=${encodeURIComponent(region || '')}`}
-            hx-target="#cafe-cards"
-            hx-swap="beforeend"
+            hx-get={`/search?offset=${nextOffset}&keyword=${encodeURIComponent(q)}&region=${encodeURIComponent(r)}`}
+            hx-target="closest .more-button-wrapper"
+            hx-swap="outerHTML"
             hx-indicator="#loading-spinner"
-            // 👈 修正：hx-select を "a" からクラス名に変更
-            hx-select=".cafe-card-link"
           >
             {UI_COPY.MORE_LABEL}
           </button>
-        ) : (
-          <div id="more-button-container"></div>
-        )}
+        ) : offset > 0 ? (
+          <p style={{ fontSize: '0.8rem', color: '#ccc', margin: SPACE.MD }}>
+            すべてのデータを読み込みました
+          </p>
+        ) : null}
       </div>
-    </>
+    </div>
   )
 }
 
 // -----------------------------------------------------------------------------
 // 5. メイン・ビュー
 // -----------------------------------------------------------------------------
-
 interface LocationInfo {
   region: string;
   city: string;
@@ -161,32 +137,65 @@ interface TopProps {
   region?: string;
 }
 
-export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword, region }: TopProps) => {
+export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword = '', region = 'all' }: TopProps) => {
   const isDev = env?.NODE_ENV === 'development';
   
   return (
     <div style={STYLES.LAYOUT.WRAPPER}>
       <div style={STYLES.LAYOUT.OUTER_CONTAINER}>
-        {isDev && <DebugMonitor user={user} env={env} location={location} />}
+        
+        {isDev && (
+          <div style={{ 
+            position: 'sticky', 
+            top: SPACE.MD,
+            alignSelf: 'start',
+            zIndex: 1000
+          }}>
+            <DebugMonitor 
+              user={user} 
+              env={env} 
+              location={location} 
+              query={{ keyword, region }} 
+            />
+          </div>
+        )}
 
         <div style={STYLES.LAYOUT.MAIN}>
           <HeaderArea user={user} />
           <SearchSection />
 
           <main style={STYLES.LAYOUT.LIST} id="cafe-list-container">
-            {/* ベースとなるコンテナをここに固定。
-              CafeList はこの中の「中身」だけを管理する。
-            */}
-            <div id="list-header"></div>
-            <div id="cafe-cards">
+            <div id="list-header" style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              marginBottom: SPACE.SM 
+            }}>
+              <h2 style={{ 
+                fontSize: PAGE_DESIGN.SECTION_TITLE.FONT_SIZE, 
+                color: PAGE_DESIGN.SECTION_TITLE.COLOR, 
+                fontWeight: PAGE_DESIGN.SECTION_TITLE.WEIGHT 
+              }}>
+                {UI_COPY.LIST_TITLE} 
+                <span style={{ 
+                  color: PAGE_DESIGN.COUNTER.COLOR, 
+                  fontWeight: PAGE_DESIGN.COUNTER.WEIGHT, 
+                  marginLeft: SPACE.XS 
+                }}>
+                  全 {totalCount} 件
+                </span>
+              </h2>
+            </div>
+
+            <div id="cafe-cards-root">
               <CafeList 
                 cafes={cafes} 
                 totalCount={totalCount} 
                 keyword={keyword} 
                 region={region} 
+                offset={0}
               />
             </div>
-            <div id="more-button-container"></div>
           </main>
           
           <footer style={{ textAlign: 'center', padding: SPACE.LG, marginTop: SPACE.XL }}>

@@ -50,7 +50,6 @@ export const renderer = jsxRenderer(({ children, title }) => {
         {/* HTMX 本体の読み込み */}
         <script 
           src="https://unpkg.com/htmx.org@1.9.12" 
-          integrity="sha384-ujb9WjVHfuAd7B3Wqo9GcRjUaf6i6Gi87v17V7Xpxv1/+fybkyGZG6SAsf11z9X3" 
           crossorigin="anonymous"
         ></script>
 

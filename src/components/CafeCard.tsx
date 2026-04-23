@@ -13,7 +13,6 @@ import { STYLES, SPACE } from '../styles/theme'
 // -----------------------------------------------------------------------------
 // 1. デザイナー向け設定 (Visual Design Config)
 // -----------------------------------------------------------------------------
-
 const CARD_DESIGN = {
   TITLE: { FONT_SIZE: '1.1rem', WEIGHT: 700, COLOR: '#111' },
   LOCATION: { FONT_SIZE: '0.85rem', COLOR: '#888' },
@@ -41,7 +40,6 @@ const CARD_DESIGN = {
 // -----------------------------------------------------------------------------
 // 2. 固定値・文言定義 (Static Config)
 // -----------------------------------------------------------------------------
-
 const CONFIG = {
   TAG_SEPARATOR: ' / ',
   LINK_DESTINATION: '#', 
@@ -51,22 +49,23 @@ const CONFIG = {
 // -----------------------------------------------------------------------------
 // 3. メインコンポーネント (CafeCard)
 // -----------------------------------------------------------------------------
-
 interface CafeCardProps {
-  title: string;   // 修正：name -> title (DBのservicesテーブルに準拠)
-  address: string; // 修正：location -> address (DBのservicesテーブルに準拠)
-  tags?: string;   // 修正：オプショナルに変更してビルドエラーを回避
+  title: string;
+  address: string;
+  tags?: string;
 }
 
-export const CafeCard = ({ title, address, tags }: CafeCardProps) => {
+export const CafeCard = ({ title, address, tags = '' }: CafeCardProps) => {
   // インライン・イベントハンドラの文字列定義
   const hoverIn = `this.style.transform='${CARD_DESIGN.INTERACTION.TRANSFORM_UP}';this.style.boxShadow='${CARD_DESIGN.INTERACTION.SHADOW}';this.style.borderColor='${CARD_DESIGN.INTERACTION.BORDER_HOVER}'`;
   const hoverOut = `this.style.transform='translateY(0)';this.style.boxShadow='none';this.style.borderColor='${CARD_DESIGN.INTERACTION.BORDER_NORMAL}'`;
 
+  // 修正ポイント：タグのパースを安全に行う
+  const tagList = tags ? tags.split(CONFIG.TAG_SEPARATOR).filter(t => t.trim() !== '') : [];
+
   return (
     <a 
       href={CONFIG.LINK_DESTINATION} 
-      class="cafe-card-link" // 👈 修正箇所：クラスを付与
       style={{ ...STYLES.COMPONENTS.CARD, textDecoration: 'none' }}
       onmouseover={hoverIn}
       onmouseout={hoverOut}
@@ -86,16 +85,14 @@ export const CafeCard = ({ title, address, tags }: CafeCardProps) => {
             fontSize: CARD_DESIGN.LOCATION.FONT_SIZE, 
             color: CARD_DESIGN.LOCATION.COLOR, 
             margin: 0, 
-            // 修正：タグがない時は下余白を消してスッキリ見せる
-            marginBottom: tags ? SPACE.SM : '0px' 
+            marginBottom: tagList.length > 0 ? SPACE.SM : '0px' 
           }}>
             {address}
           </p>
 
-          {/* 修正：tagsが存在する場合のみレンダリング */}
-          {tags && (
+          {tagList.length > 0 && (
             <div style={{ display: 'flex', gap: SPACE.XS, flexWrap: 'wrap' }}>
-              {tags.split(CONFIG.TAG_SEPARATOR).map((tag, i) => (
+              {tagList.map((tag, i) => (
                 <span key={i} style={{ 
                   fontSize: CARD_DESIGN.TAG.FONT_SIZE, 
                   background: CARD_DESIGN.TAG.BG, 
@@ -110,7 +107,6 @@ export const CafeCard = ({ title, address, tags }: CafeCardProps) => {
           )}
         </div>
         
-        {/* 右側の矢印 */}
         <div style={{ 
           color: CARD_DESIGN.ARROW.COLOR, 
           fontSize: CARD_DESIGN.ARROW.FONT_SIZE,
@@ -124,9 +120,8 @@ export const CafeCard = ({ title, address, tags }: CafeCardProps) => {
 }
 
 // -----------------------------------------------------------------------------
-// 4. スケルトンコンポーネント (SkeletonCard)
+// 4. スケルトンコンポーネント
 // -----------------------------------------------------------------------------
-
 export const SkeletonCard = () => (
   <div style={{ ...STYLES.COMPONENTS.CARD, cursor: 'default', borderStyle: 'dashed' }}>
     <div style={{ 
