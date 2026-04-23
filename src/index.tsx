@@ -23,7 +23,7 @@
 import { Hono } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { renderer } from './renderer'
-import { Top, CafeList } from './pages/Top' // 👈 CafeList を追加インポート
+import { Top, CafeList } from './pages/Top'
 import { sandboxApp } from './_sandbox/_router'
 
 /**
@@ -70,12 +70,20 @@ app.get('/', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
 
-  // クエリパラメータから初期検索条件を取得（URL直接入力対応）
+  // 1. Cloudflareから位置情報を取得 (test05の学習内容を適用)
+  const cf = c.req.raw.cf as any 
+  const locationInfo = {
+    region: cf?.region || 'unknown',
+    city: cf?.city || 'unknown',
+    colo: cf?.colo || 'unknown'
+  }
+
+  // クエリパラメータから初期検索条件を取得
   const keyword = c.req.query('keyword')
 
   const [user, cafeResult] = await Promise.all([
     getCurrentUser(db, sessionUserId),
-    fetchCafesByContext(db, { keyword }) // keyword があれば絞り込み
+    fetchCafesByContext(db, { keyword })
   ])
 
   return c.render(
@@ -83,7 +91,8 @@ app.get('/', async (c) => {
       user={user} 
       env={c.env} 
       cafes={cafeResult.cafes} 
-      totalCount={cafeResult.totalCount} 
+      totalCount={cafeResult.totalCount}
+      location={locationInfo} // 2. Topコンポーネントへ渡す
     />, 
     { title: 'メインポータル' }
   )
@@ -92,23 +101,18 @@ app.get('/', async (c) => {
 /**
  * [GET] /search
  * HTMX専用：検索・もっと見る（部分更新）
- * ページ全体ではなく、CafeList コンポーネントのみをHTMLとして返却します
  */
 app.get('/search', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   
-  // クエリパラメータの取得
   const keyword = c.req.query('keyword')
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
-  // DBから該当データを取得
   const { cafes, totalCount } = await fetchCafesByContext(db, { 
     keyword, 
     offset 
   })
 
-  // ページ全体(c.render)ではなく、コンポーネント単体をHTMLとして返す
-  // これにより HTMX が指定した target(#cafe-list-container 等)を瞬時に書き換える
   return c.html(
     <CafeList 
       cafes={cafes} 

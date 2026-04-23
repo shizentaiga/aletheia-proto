@@ -57,20 +57,19 @@ const UI_COPY = {
   LIST_TITLE: '近くのカフェ',
   RESULTS_LABEL: '件を表示中', 
   TOTAL_PREFIX: '/',
-  MORE_LABEL: 'もっと見る（後日、対応予定）',   // 後日対応に変更
+  MORE_LABEL: 'もっと見る（後日、対応予定）',
   COPYRIGHT: '© 2026 ALETHEIA PROJECT'
 } as const;
 
 // -----------------------------------------------------------------------------
 // 4. 部分更新用コンポーネント (CafeList)
-//    HTMXが検索時や「もっと見る」時に、この中身だけを返却するために使用
 // -----------------------------------------------------------------------------
 
 interface CafeListProps {
   cafes: Cafe[];
   totalCount: number;
   offset?: number;
-  keyword?: string; // 「もっと見る」の継続的なクエリ用
+  keyword?: string;
 }
 
 export const CafeList = ({ cafes, totalCount, offset = 0, keyword }: CafeListProps) => {
@@ -79,7 +78,6 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword }: CafeListPro
 
   return (
     <>
-      {/* リストヘッダー：hx-swap-oob="true" により、検索時も追加読み込み時も件数表示を自動更新 */}
       <div id="list-header" hx-swap-oob="true" style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
@@ -102,7 +100,6 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword }: CafeListPro
         </h2>
       </div>
 
-      {/* カフェカード一覧：hx-target の対象 */}
       <div id="cafe-cards">
         {cafes.map((cafe, index) => (
           <CafeCard 
@@ -113,9 +110,6 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword }: CafeListPro
         ))}
       </div>
 
-      {/* 「もっと見る」ボタンコンテナ：
-          hx-swap="outerHTML" でコンテナごと新しいボタン（または空）に差し替えます
-      */}
       <div id="more-button-container" style={{ textAlign: 'center', marginTop: SPACE.MD }}>
         {hasMore && (
           <button
@@ -143,21 +137,30 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword }: CafeListPro
 // 5. メイン・ビュー
 // -----------------------------------------------------------------------------
 
+// DebugMonitorと型を合わせる
+interface LocationInfo {
+  region: string;
+  city: string;
+  colo: string;
+}
+
 interface TopProps {
   user?: any;
   env?: any;
   cafes?: Cafe[];
   totalCount?: number;
+  location?: LocationInfo; // 👈 location を追加
 }
 
-export const Top = ({ user, env, cafes = [], totalCount = 0 }: TopProps) => {
+export const Top = ({ user, env, cafes = [], totalCount = 0, location }: TopProps) => {
   const isDev = env?.NODE_ENV === 'development';
 
   return (
     <div style={STYLES.LAYOUT.WRAPPER}>
       <div style={STYLES.LAYOUT.OUTER_CONTAINER}>
         
-        {isDev && <DebugMonitor user={user} env={env} />}
+        {/* 修正：location プロパティを DebugMonitor に渡す */}
+        {isDev && <DebugMonitor user={user} env={env} location={location} />}
 
         <div style={STYLES.LAYOUT.MAIN}>
           
@@ -165,7 +168,6 @@ export const Top = ({ user, env, cafes = [], totalCount = 0 }: TopProps) => {
 
           <SearchSection />
 
-          {/* HTMXによる部分更新のターゲットとなるメインコンテナ */}
           <main style={STYLES.LAYOUT.LIST} id="cafe-list-container">
             <CafeList cafes={cafes} totalCount={totalCount} />
           </main>

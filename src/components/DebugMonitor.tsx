@@ -45,7 +45,7 @@ const UI_COPY = {
   PANEL_TITLE: 'Debug Monitor',
   LABELS: {
     EMAIL: 'Email',
-    LOCATION: 'Location',
+    LOCATION: 'Location (CF)', // Cloudflare経由であることを明示
     MODE: 'MODE',
   },
   FALLBACK: {
@@ -55,24 +55,23 @@ const UI_COPY = {
 } as const;
 
 // -----------------------------------------------------------------------------
-// 3. 固定値・検証用データ (Static / Mock Data)
+// 3. メインコンポーネント
 // -----------------------------------------------------------------------------
 
-const MOCK_LOCATION = {
-  LAT: '35.7056',
-  LNG: '139.6199',
-} as const;
-
-// -----------------------------------------------------------------------------
-// 4. メインコンポーネント
-// -----------------------------------------------------------------------------
+// 位置情報の型定義を追加
+interface LocationInfo {
+  region: string;
+  city: string;
+  colo: string;
+}
 
 interface DebugMonitorProps {
   user: any;
   env: any;
+  location?: LocationInfo; // 👈 任意プロパティとして追加
 }
 
-export const DebugMonitor = ({ user, env }: DebugMonitorProps) => {
+export const DebugMonitor = ({ user, env, location }: DebugMonitorProps) => {
   return (
     <aside style={STYLES.LAYOUT.DEBUG_MONITOR}>
       {/* タイトルセクション */}
@@ -95,14 +94,15 @@ export const DebugMonitor = ({ user, env }: DebugMonitorProps) => {
         </div>
       </div>
 
-      {/* 座標情報セクション（検証用） */}
+      {/* CDN位置情報セクション（モックから実測値へ） */}
       <div>
         <div style={{ color: DEBUG_DESIGN.LABEL.COLOR, fontSize: DEBUG_DESIGN.LABEL.FONT_SIZE, marginBottom: DEBUG_DESIGN.LABEL.MARGIN_B }}>
           {UI_COPY.LABELS.LOCATION}
         </div>
         <div style={{ fontWeight: DEBUG_DESIGN.VALUE.WEIGHT, color: DEBUG_DESIGN.VALUE.COLOR }}>
-          Lat: <span style={{ color: DEBUG_DESIGN.VALUE.ACCENT_COLOR }}>{MOCK_LOCATION.LAT}</span><br />
-          Lng: <span style={{ color: DEBUG_DESIGN.VALUE.ACCENT_COLOR }}>{MOCK_LOCATION.LNG}</span>
+          Region: <span style={{ color: DEBUG_DESIGN.VALUE.ACCENT_COLOR }}>{location?.region || 'N/A'}</span><br />
+          City: <span style={{ color: DEBUG_DESIGN.VALUE.ACCENT_COLOR }}>{location?.city || 'N/A'}</span><br />
+          Colo: <span style={{ color: DEBUG_DESIGN.VALUE.ACCENT_COLOR }}>{location?.colo || 'N/A'}</span>
         </div>
       </div>
 
