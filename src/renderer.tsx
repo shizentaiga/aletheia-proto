@@ -7,7 +7,6 @@ const SITE_CONFIG = {
 } as const
 
 const GLOBAL_STYLES = `
-  /* 余計なマージンやデフォルトのヘッダー色をリセット */
   body { 
     margin: 0; 
     padding: 0;
@@ -16,6 +15,18 @@ const GLOBAL_STYLES = `
     color: #111;
   }
   * { box-sizing: border-box; }
+
+  /* HTMX 読み込み中のスタイル定義 */
+  .htmx-indicator {
+    opacity: 0;
+    transition: opacity 200ms ease-in;
+  }
+  .htmx-request .htmx-indicator {
+    opacity: 1;
+  }
+  .htmx-request.htmx-indicator {
+    opacity: 1;
+  }
 `
 
 declare module 'hono' {
@@ -35,11 +46,35 @@ export const renderer = jsxRenderer(({ children, title }) => {
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>{pageTitle}</title>
+        
+        {/* HTMX 本体の読み込み */}
+        <script 
+          src="https://unpkg.com/htmx.org@1.9.12" 
+          integrity="sha384-ujb9WjVHfuAd7B3Wqo9GcRjUaf6i6Gi87v17V7Xpxv1/+fybkyGZG6SAsf11z9X3" 
+          crossorigin="anonymous"
+        ></script>
+
         <style>{GLOBAL_STYLES}</style>
       </head>
       <body>
-        {/* ここにあった <header> と <footer> を削除しました */}
         {children}
+
+        {/* 「もっと見る」などのリクエスト中に表示する
+             グローバルなローディングインジケーター（必要に応じて）
+        */}
+        <div id="loading-spinner" class="htmx-indicator" style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          background: 'rgba(0,0,0,0.7)',
+          color: '#fff',
+          padding: '8px 16px',
+          borderRadius: '20px',
+          fontSize: '0.8rem',
+          zIndex: 9999
+        }}>
+          読み込み中...
+        </div>
       </body>
     </html>
   )

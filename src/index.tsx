@@ -19,27 +19,18 @@
  * =============================================================================
  */
 
-/**
- * =============================================================================
- * 【 ALETHEIA - システム・エントリーポイント / index.tsx 】
- * =============================================================================
- * 役割：ルーティングの定義、ミドルウェアの適用、各機能モジュールの接合。
- * 📁 File Path: src/index.tsx
- * =============================================================================
- */
-
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { renderer } from './renderer'
-import { Top } from './pages/Top'
+import { Top, CafeList } from './pages/Top' // 👈 CafeList を追加インポート
 import { sandboxApp } from './_sandbox/_router'
 
 /**
  * 内部ライブラリ・DB層のインポート
  */
 import { authApp, AUTH_CONFIG, getCurrentUser } from './lib/auth'
-import { fetchCafesByContext } from './db/queries' // 👈 追加：DBクエリ関数の導入
+import { fetchCafesByContext } from './db/queries'
 
 // -----------------------------------------------------------------------------
 // 1. 環境変数定義 (Bindings)
@@ -72,21 +63,21 @@ app.route('/_sandbox', sandboxApp)
 // -----------------------------------------------------------------------------
 
 /**
- * トップページ
- * 認証情報とDB実データを並列で取得し、統合されたビューを提供します。
+ * [GET] /
+ * トップページ（フルリロード時）
  */
 app.get('/', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
 
-  // 1. ユーザー情報とカフェデータを並列で取得（パフォーマンス最適化）
+  // クエリパラメータから初期検索条件を取得（URL直接入力対応）
+  const keyword = c.req.query('keyword')
+
   const [user, cafeResult] = await Promise.all([
     getCurrentUser(db, sessionUserId),
-    fetchCafesByContext(db) // デフォルト条件（全エリア・全キーワード）で取得
+    fetchCafesByContext(db, { keyword }) // keyword があれば絞り込み
   ])
 
-  // 2. レンダリング
-  // Top.tsx に対して、実データ(cafes)と総件数(totalCount)を渡します
   return c.render(
     <Top 
       user={user} 
@@ -95,6 +86,36 @@ app.get('/', async (c) => {
       totalCount={cafeResult.totalCount} 
     />, 
     { title: 'メインポータル' }
+  )
+})
+
+/**
+ * [GET] /search
+ * HTMX専用：検索・もっと見る（部分更新）
+ * ページ全体ではなく、CafeList コンポーネントのみをHTMLとして返却します
+ */
+app.get('/search', async (c) => {
+  const db = c.env.ALETHEIA_PROTO_DB
+  
+  // クエリパラメータの取得
+  const keyword = c.req.query('keyword')
+  const offset = parseInt(c.req.query('offset') || '0', 10)
+
+  // DBから該当データを取得
+  const { cafes, totalCount } = await fetchCafesByContext(db, { 
+    keyword, 
+    offset 
+  })
+
+  // ページ全体(c.render)ではなく、コンポーネント単体をHTMLとして返す
+  // これにより HTMX が指定した target(#cafe-list-container 等)を瞬時に書き換える
+  return c.html(
+    <CafeList 
+      cafes={cafes} 
+      totalCount={totalCount} 
+      offset={offset} 
+      keyword={keyword} 
+    />
   )
 })
 

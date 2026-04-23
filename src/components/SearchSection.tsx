@@ -38,13 +38,11 @@ const SEARCH_DESIGN = {
 const UI_COPY = {
   PLACEHOLDER: '店舗名・特徴（Wi-Fi、静かなど）で検索...',
   SEARCH_LABEL: '🔍',
-  // 地域コンテキスト
   AREAS: [
     { label: '東京', value: 'tokyo' },
     { label: '関東', value: 'kanto' },
     { label: '全国', value: 'all' },
   ],
-  // 主要駅チップ（Cloudflareの判定に合わせて動的に出す想定）
   STATION_CHIPS: ['渋谷', '新宿', '池袋']
 } as const;
 
@@ -56,17 +54,20 @@ export const SearchSection = () => {
   return (
     <div style={{ ...STYLES.LAYOUT.STICKY_BAR, flexDirection: 'column', alignItems: 'stretch' }}>
       
-      {/* 1段目：エリアコンテキスト（どこで） */}
+      {/* 1段目：エリアコンテキスト */}
       <div style={{ 
         display: 'flex', 
         gap: SPACE.XS, 
         marginBottom: SPACE.XS, 
         alignItems: 'center',
-        overflowX: 'auto', // チップが多い場合に横スクロール可能に
+        overflowX: 'auto',
         paddingBottom: '4px'
       }}>
         {/* 地域選択セレクト */}
-        <select style={{ ...STYLES.COMPONENTS.SELECT, width: 'auto', minWidth: '80px' }}>
+        <select 
+          name="region"
+          style={{ ...STYLES.COMPONENTS.SELECT, width: 'auto', minWidth: '80px' }}
+        >
           {UI_COPY.AREAS.map((area) => (
             <option key={area.value} value={area.value}>
               {area.label}
@@ -74,10 +75,11 @@ export const SearchSection = () => {
           ))}
         </select>
 
-        {/* 主要駅チップ */}
+        {/* 主要駅チップ：相対パス ./search を指定して確実にパスを通す */}
         {UI_COPY.STATION_CHIPS.map((station) => (
           <button 
             key={station}
+            type="button"
             style={{
               background: SEARCH_DESIGN.AREA_CHIP.BG,
               color: SEARCH_DESIGN.AREA_CHIP.TEXT,
@@ -88,30 +90,47 @@ export const SearchSection = () => {
               cursor: 'pointer',
               whiteSpace: 'nowrap'
             }}
+            hx-get="./search"
+            hx-vals={`{"keyword": "${station}"}`}
+            hx-target="#cafe-list-container"
+            hx-push-url="true"
           >
             {station}
           </button>
         ))}
       </div>
 
-      {/* 2段目：自由検索（何を） */}
-      <section style={STYLES.LAYOUT.SEARCH_BOX}>
+      {/* 2段目：自由検索（formタグを導入） */}
+      {/* hx-trigger="submit" にすることで、
+          Enterキー押下時と検索ボタン押下時の両方を一括でハンドリングします。
+      */}
+      <form 
+        style={STYLES.LAYOUT.SEARCH_BOX}
+        hx-get="./search"
+        hx-trigger="submit"
+        hx-target="#cafe-list-container"
+        hx-push-url="true"
+      >
         <input 
           type="text" 
+          name="keyword" 
           placeholder={UI_COPY.PLACEHOLDER} 
           style={{ ...STYLES.COMPONENTS.INPUT, flex: 1 }} 
         />
-        <button style={{ 
-          background: SEARCH_DESIGN.SEARCH_ICON_BTN.BG, 
-          border: SEARCH_DESIGN.SEARCH_ICON_BTN.BORDER, 
-          color: SEARCH_DESIGN.SEARCH_ICON_BTN.COLOR, 
-          fontSize: SEARCH_DESIGN.SEARCH_ICON_BTN.FONT_SIZE, 
-          cursor: 'pointer', 
-          padding: `0 ${SPACE.XS}` 
-        }}>
+        <button 
+          type="submit" 
+          style={{ 
+            background: SEARCH_DESIGN.SEARCH_ICON_BTN.BG, 
+            border: SEARCH_DESIGN.SEARCH_ICON_BTN.BORDER, 
+            color: SEARCH_DESIGN.SEARCH_ICON_BTN.COLOR, 
+            fontSize: SEARCH_DESIGN.SEARCH_ICON_BTN.FONT_SIZE, 
+            cursor: 'pointer', 
+            padding: `0 ${SPACE.XS}` 
+          }}
+        >
           {UI_COPY.SEARCH_LABEL}
         </button>
-      </section>
+      </form>
 
     </div>
   );
