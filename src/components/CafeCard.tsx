@@ -66,6 +66,7 @@ export const CafeCard = ({ title, address, tags }: CafeCardProps) => {
   return (
     <a 
       href={CONFIG.LINK_DESTINATION} 
+      class="cafe-card-link" // 👈 修正箇所：クラスを付与
       style={{ ...STYLES.COMPONENTS.CARD, textDecoration: 'none' }}
       onmouseover={hoverIn}
       onmouseout={hoverOut}

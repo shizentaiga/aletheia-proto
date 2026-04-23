@@ -81,7 +81,7 @@ export const SearchSection = () => {
           ))}
         </select>
 
-        {/* 主要駅チップ：パスを絶対パス /search に変更 */}
+        {/* 主要駅チップ：hx-vals を廃止し URL クエリ形式に変更 */}
         {UI_COPY.STATION_CHIPS.map((station) => (
           <button 
             key={station}
@@ -96,8 +96,7 @@ export const SearchSection = () => {
               cursor: 'pointer',
               whiteSpace: 'nowrap'
             }}
-            hx-get="/search"
-            hx-vals={`{"keyword": "${station}"}`}
+            hx-get={`/search?keyword=${encodeURIComponent(station)}`}
             hx-include="#region-select"
             hx-target="#cafe-list-container"
             hx-push-url="true"
@@ -112,7 +111,7 @@ export const SearchSection = () => {
         style={STYLES.LAYOUT.SEARCH_BOX}
         hx-get="/search"
         hx-trigger="submit"
-        // 修正ポイント: 検索時は中身の継ぎ足しではなく、リストエリア全体を差し替える
+        // 検索時はリスト全体（#cafe-list-container）をリセットして描き直す
         hx-target="#cafe-list-container" 
         hx-include="#region-select"
         hx-push-url="true"

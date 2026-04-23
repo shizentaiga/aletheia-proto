@@ -122,22 +122,14 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword, region }: Caf
       <div id="more-button-container" hx-swap-oob="true" style={{ textAlign: 'center', marginTop: SPACE.MD }}>
         {hasMore ? (
           <button
-            style={{
-              ...PAGE_DESIGN.MORE_BTN,
-              cursor: 'pointer',
-              width: '100%'
-            }}
-            hx-get="/search"
-            hx-vals={JSON.stringify({ 
-              offset: offset + DISPLAY_LIMIT, 
-              keyword: keyword || '',
-              region: region || ''
-            })}
+            style={{ ...PAGE_DESIGN.MORE_BTN, cursor: 'pointer', width: '100%' }}
+            // 👈 修正：hx-vals を廃止し、hx-get の URL に直接パラメータを埋め込む
+            hx-get={`/search?offset=${offset + DISPLAY_LIMIT}&keyword=${encodeURIComponent(keyword || '')}&region=${encodeURIComponent(region || '')}`}
             hx-target="#cafe-cards"
             hx-swap="beforeend"
             hx-indicator="#loading-spinner"
-            // 返ってきた HTML 全体の中から「カード（CafeCard）」に相当する部分だけを抽出
-            hx-select="a" 
+            // 👈 修正：hx-select を "a" からクラス名に変更
+            hx-select=".cafe-card-link"
           >
             {UI_COPY.MORE_LABEL}
           </button>
