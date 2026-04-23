@@ -70,7 +70,7 @@ app.get('/', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
 
-  // 1. Cloudflareから位置情報を取得 (test05の学習内容を適用)
+  // 1. Cloudflareから位置情報を取得（デバッグ・UIヒント用）
   const cf = c.req.raw.cf as any 
   const locationInfo = {
     region: cf?.region || 'unknown',
@@ -78,12 +78,21 @@ app.get('/', async (c) => {
     colo: cf?.colo || 'unknown'
   }
 
-  // クエリパラメータから初期検索条件を取得
+  // 2. クエリパラメータから検索条件を厳密に取得
   const keyword = c.req.query('keyword')
+  const queryRegion = c.req.query('region') // 明示的に指定された場合のみ値が入る
 
+  /**
+   * アルゴリズムの修正：
+   * fetchCafesByContext には「現在地(cf.region)」を自動で合成しない。
+   * これにより、デフォルトの分母は常に「全国」となる。
+   */
   const [user, cafeResult] = await Promise.all([
     getCurrentUser(db, sessionUserId),
-    fetchCafesByContext(db, { keyword })
+    fetchCafesByContext(db, { 
+      keyword, 
+      region: queryRegion // 👈 queryRegion が undefined なら全件検索される
+    })
   ])
 
   return c.render(
@@ -92,7 +101,7 @@ app.get('/', async (c) => {
       env={c.env} 
       cafes={cafeResult.cafes} 
       totalCount={cafeResult.totalCount}
-      location={locationInfo} // 2. Topコンポーネントへ渡す
+      location={locationInfo} // locationInfo は UI 側での「おすすめ表示」等に活用
     />, 
     { title: 'メインポータル' }
   )
@@ -106,11 +115,14 @@ app.get('/search', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   
   const keyword = c.req.query('keyword')
+  const queryRegion = c.req.query('region') 
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
+  // 👈 HTMX側でも同様に、現在地による自動フィルタを撤廃
   const { cafes, totalCount } = await fetchCafesByContext(db, { 
     keyword, 
-    offset 
+    offset,
+    region: queryRegion 
   })
 
   return c.html(

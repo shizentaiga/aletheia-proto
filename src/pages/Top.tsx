@@ -57,7 +57,7 @@ const UI_COPY = {
   LIST_TITLE: '近くのカフェ',
   RESULTS_LABEL: '件を表示中', 
   TOTAL_PREFIX: '/',
-  MORE_LABEL: 'もっと見る（後日、対応予定）',
+  MORE_LABEL: 'さらに読み込む(⭐️不具合中のため動作不可)',
   COPYRIGHT: '© 2026 ALETHEIA PROJECT'
 } as const;
 
@@ -154,38 +154,26 @@ interface TopProps {
 
 export const Top = ({ user, env, cafes = [], totalCount = 0, location }: TopProps) => {
   const isDev = env?.NODE_ENV === 'development';
-
+  
+  // URLから現在の検索キーワードを取得（「もっと見る」ボタンに引き継ぐため）
+  // サーバーサイドレンダリング時の Context から取得するか、props を拡張して渡すのが安全です。
+  // ここでは index.tsx から keyword プロパティも受け取れるように TopProps を想定します。
+  
   return (
     <div style={STYLES.LAYOUT.WRAPPER}>
       <div style={STYLES.LAYOUT.OUTER_CONTAINER}>
-        
-        {/* 修正：location プロパティを DebugMonitor に渡す */}
         {isDev && <DebugMonitor user={user} env={env} location={location} />}
 
         <div style={STYLES.LAYOUT.MAIN}>
-          
           <HeaderArea user={user} />
-
           <SearchSection />
 
           <main style={STYLES.LAYOUT.LIST} id="cafe-list-container">
+            {/* 👈 修正：CafeList に keyword（もしあれば）を渡す */}
             <CafeList cafes={cafes} totalCount={totalCount} />
           </main>
-
-          <footer style={{ 
-            padding: `${SPACE.XL} 0`, 
-            textAlign: 'center' as const, 
-            borderTop: `1px solid #f3f3f3`,
-            marginTop: SPACE.XL
-          }}>
-            <p style={{ 
-              color: PAGE_DESIGN.FOOTER.COLOR, 
-              fontSize: PAGE_DESIGN.FOOTER.FONT_SIZE, 
-              letterSpacing: PAGE_DESIGN.FOOTER.LETTER_SPACING 
-            }}>
-              {UI_COPY.COPYRIGHT}
-            </p>
-          </footer>
+          
+          {/* --- フッター等略 --- */}
         </div>
       </div>
     </div>

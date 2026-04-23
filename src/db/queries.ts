@@ -16,6 +16,8 @@
  * =============================================================================
  */
 
+import { getPrefectureName } from '../lib/constants'; // 👈 追加
+
 // -----------------------------------------------------------------------------
 // 1. 定数管理 (Config)
 // -----------------------------------------------------------------------------
@@ -54,7 +56,6 @@ export interface FetchCafesResponse {
 
 /**
  * 3-1. カフェ一覧・検索取得 (fetchCafesByContext)
- * キーワード、地域フィルタ、およびオフセットに基づきデータを取得する。
  */
 export async function fetchCafesByContext(
   db: D1Database,
@@ -69,13 +70,23 @@ export async function fetchCafesByContext(
   let whereClauses: string[] = ["deleted_at IS NULL"];
   let params: any[] = [];
 
-  // 地域フィルタ
+  // 1. 地域フィルタの正規化 (追加・修正)
   if (region) {
-    whereClauses.push("(prefecture = ? OR city = ?)");
-    params.push(region, region);
+    // Cloudflareの生データ(13, Tokyo等)を「東京都」形式に変換
+    const mappedRegion = getPrefectureName(region);
+    
+    if (mappedRegion) {
+      // 変換成功：マッピング後の日本語名で検索
+      whereClauses.push("(prefecture = ? OR city = ?)");
+      params.push(mappedRegion, mappedRegion);
+    } else {
+      // 変換不可（マッピング外）：元の値をそのまま利用（後方互換性）
+      whereClauses.push("(prefecture = ? OR city = ?)");
+      params.push(region, region);
+    }
   }
 
-  // キーワード検索
+  // 2. キーワード検索 (変更なし)
   if (keyword) {
     whereClauses.push("(title LIKE ? OR address LIKE ?)");
     params.push(`%${keyword}%`, `%${keyword}%`);
@@ -83,7 +94,7 @@ export async function fetchCafesByContext(
 
   const whereSql = `WHERE ${whereClauses.join(" AND ")}`;
 
-  // 1. データ取得クエリ (LIMIT & OFFSET を適用)
+  // --- (クエリ実行ロジックは変更なし) ---
   const dataQuery = `
     SELECT service_id, title, address, prefecture, city
     FROM services
@@ -92,12 +103,8 @@ export async function fetchCafesByContext(
     LIMIT ? OFFSET ?
   `;
 
-  // 2. 総件数取得クエリ (OFFSETに関わらず全量を把握)
-  const countQuery = `
-    SELECT COUNT(*) as total FROM services ${whereSql}
-  `;
+  const countQuery = `SELECT COUNT(*) as total FROM services ${whereSql}`;
 
-  // D1 batch実行
   const [dataResult, countResult] = await db.batch([
     db.prepare(dataQuery).bind(...params, DISPLAY_LIMIT, offset),
     db.prepare(countQuery).bind(...params),

@@ -9,6 +9,8 @@
 
 /** @jsxImportSource hono/jsx */
 import { STYLES, SPACE } from '../styles/theme'
+// 1. 変換関数のインポートを追加
+import { getPrefectureName } from '../lib/constants'
 
 // -----------------------------------------------------------------------------
 // 1. デザイナー・エンジニア向け設定 (Visual & Debug Config)
@@ -45,12 +47,13 @@ const UI_COPY = {
   PANEL_TITLE: 'Debug Monitor',
   LABELS: {
     EMAIL: 'Email',
-    LOCATION: 'Location (CF)', // Cloudflare経由であることを明示
+    LOCATION: 'Location (CF)', 
     MODE: 'MODE',
   },
   FALLBACK: {
     GUEST_EMAIL: 'guest@example.com',
     UNDEFINED: 'undefined',
+    NOT_AVAILABLE: 'N/A'
   }
 } as const;
 
@@ -58,7 +61,6 @@ const UI_COPY = {
 // 3. メインコンポーネント
 // -----------------------------------------------------------------------------
 
-// 位置情報の型定義を追加
 interface LocationInfo {
   region: string;
   city: string;
@@ -68,10 +70,13 @@ interface LocationInfo {
 interface DebugMonitorProps {
   user: any;
   env: any;
-  location?: LocationInfo; // 👈 任意プロパティとして追加
+  location?: LocationInfo;
 }
 
 export const DebugMonitor = ({ user, env, location }: DebugMonitorProps) => {
+  // 2. 変換後の都道府県名を取得
+  const mappedPref = getPrefectureName(location?.region);
+
   return (
     <aside style={STYLES.LAYOUT.DEBUG_MONITOR}>
       {/* タイトルセクション */}
@@ -94,20 +99,25 @@ export const DebugMonitor = ({ user, env, location }: DebugMonitorProps) => {
         </div>
       </div>
 
-      {/* CDN位置情報セクション（モックから実測値へ） */}
+      {/* CDN位置情報セクション：生データとマッピング結果を併記 */}
       <div>
         <div style={{ color: DEBUG_DESIGN.LABEL.COLOR, fontSize: DEBUG_DESIGN.LABEL.FONT_SIZE, marginBottom: DEBUG_DESIGN.LABEL.MARGIN_B }}>
           {UI_COPY.LABELS.LOCATION}
         </div>
-        <div style={{ fontWeight: DEBUG_DESIGN.VALUE.WEIGHT, color: DEBUG_DESIGN.VALUE.COLOR }}>
-          Region: <span style={{ color: DEBUG_DESIGN.VALUE.ACCENT_COLOR }}>{location?.region || 'N/A'}</span><br />
-          City: <span style={{ color: DEBUG_DESIGN.VALUE.ACCENT_COLOR }}>{location?.city || 'N/A'}</span><br />
-          Colo: <span style={{ color: DEBUG_DESIGN.VALUE.ACCENT_COLOR }}>{location?.colo || 'N/A'}</span>
+        <div style={{ fontWeight: DEBUG_DESIGN.VALUE.WEIGHT, color: DEBUG_DESIGN.VALUE.COLOR, lineHeight: 1.4 }}>
+          {/* 生データ(RAW) */}
+          Region: <span style={{ color: DEBUG_DESIGN.VALUE.ACCENT_COLOR }}>{location?.region || UI_COPY.FALLBACK.NOT_AVAILABLE}</span><br />
+          
+          {/* 3. マッピング結果を表示 */}
+          Mapped: <span style={{ color: DEBUG_DESIGN.VALUE.ACCENT_COLOR }}>{mappedPref || UI_COPY.FALLBACK.NOT_AVAILABLE}</span><br />
+          
+          City: <span style={{ color: DEBUG_DESIGN.VALUE.ACCENT_COLOR }}>{location?.city || UI_COPY.FALLBACK.NOT_AVAILABLE}</span><br />
+          Colo: <span style={{ color: DEBUG_DESIGN.VALUE.ACCENT_COLOR }}>{location?.colo || UI_COPY.FALLBACK.NOT_AVAILABLE}</span>
         </div>
       </div>
 
       {/* 環境モード表示（右寄せ） */}
-      <div style={{ fontSize: DEBUG_DESIGN.FOOTER.FONT_SIZE, color: DEBUG_DESIGN.FOOTER.COLOR, textAlign: 'right' }}>
+      <div style={{ fontSize: DEBUG_DESIGN.FOOTER.FONT_SIZE, color: DEBUG_DESIGN.FOOTER.COLOR, textAlign: 'right', marginTop: SPACE.XS }}>
         {UI_COPY.LABELS.MODE}: {env?.NODE_ENV || UI_COPY.FALLBACK.UNDEFINED}
       </div>
     </aside>
