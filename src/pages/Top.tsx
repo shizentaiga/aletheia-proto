@@ -7,7 +7,7 @@
  * =============================================================================
  */
 
-/** @jsxImportSource hono/jsx */
+//** @jsxImportSource hono/jsx */
 
 // -----------------------------------------------------------------------------
 // 1. 外部依存・デザインシステム
@@ -71,19 +71,15 @@ interface CafeListProps {
   region?: string;
 }
 
-/**
- * 修正ポイント: 
- * test06方式に従い、keyword と region のデフォルト値を空文字に設定し、
- * URL構築時に確実にリレーされるようにします。
- */
 export const CafeList = ({ cafes, totalCount, offset = 0, keyword = '', region = '' }: CafeListProps) => {
-  const currentDisplayCount = offset + cafes.length;
-  const hasMore = currentDisplayCount < totalCount;
-  const nextOffset = offset + cafes.length; // DISPLAY_LIMITではなく実数で計算する方が安全
+  // test06方式：実際に取得できた件数を足して次の開始位置(nextOffset)を算出
+  const nextOffset = offset + cafes.length;
+  // 全件数に達していない場合のみ「もっと見る」を表示
+  const hasMore = nextOffset < totalCount;
 
-  // 型安全と確実に値を渡すための変数定義
+  // URLパラメータとして安全に渡すための正規化
   const q = keyword || '';
-  const r = region || 'all';
+  const r = region || '';
 
   return (
     <div className="cafe-list-block">
@@ -101,6 +97,7 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword = '', region =
         {hasMore ? (
           <button
             style={{ ...PAGE_DESIGN.MORE_BTN, cursor: 'pointer', width: '100%' }}
+            // サーバー(index.tsx)に定義した /search を叩く
             hx-get={`/search?offset=${nextOffset}&keyword=${encodeURIComponent(q)}&region=${encodeURIComponent(r)}`}
             hx-target="closest .more-button-wrapper"
             hx-swap="outerHTML"
@@ -108,11 +105,14 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword = '', region =
           >
             {UI_COPY.MORE_LABEL}
           </button>
-        ) : offset > 0 ? (
-          <p style={{ fontSize: '0.8rem', color: '#ccc', margin: SPACE.MD }}>
-            すべてのデータを読み込みました
-          </p>
-        ) : null}
+        ) : (
+          /* データが0件でない、かつ最後に達した時のみ表示 */
+          totalCount > 0 && (
+            <p style={{ fontSize: '0.8rem', color: '#ccc', margin: SPACE.MD }}>
+              すべてのデータを読み込みました
+            </p>
+          )
+        )}
       </div>
     </div>
   )
@@ -137,7 +137,7 @@ interface TopProps {
   region?: string;
 }
 
-export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword = '', region = 'all' }: TopProps) => {
+export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword = '', region = '' }: TopProps) => {
   const isDev = env?.NODE_ENV === 'development';
   
   return (

@@ -59,16 +59,16 @@ app.get('/', async (c) => {
     colo: cf?.colo || 'unknown'
   }
 
-  // test06方式：undefined を許容せず空文字/デフォルト値に倒す
+  // 修正：undefined を許容せず空文字に倒す（SQLでの意図しないマッチを防ぐ）
   const keyword = c.req.query('keyword') || ''
-  const region = c.req.query('region') || '' // 👈 'all' から空文字へ修正
+  const region = c.req.query('region') || '' 
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
   const [user, cafeResult] = await Promise.all([
     getCurrentUser(db, sessionUserId),
     fetchCafesByContext(db, { 
       keyword, 
-      region, // 名称を統一
+      region,
       offset
     })
   ])
@@ -94,18 +94,20 @@ app.get('/', async (c) => {
 app.get('/search', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   
-  // 核心：リクエストから得た値をそのまま文字列として保持
+  // 修正：ここでも region を空文字に。'all' などの固定文字を入れない。
   const keyword = c.req.query('keyword') || ''
-  const region = c.req.query('region') || 'all'
+  const region = c.req.query('region') || ''
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
+  // DBから該当するカフェデータを取得
   const { cafes, totalCount } = await fetchCafesByContext(db, { 
     keyword, 
     offset,
     region 
   })
 
-  // 核心：受け取った値を一文字も漏らさず次のコンポーネントへ「リレー」する
+  // 核心：受け取った値を一文字も漏らさず CafeList へ「リレー」する
+  // これにより CafeList 内の「さらに読み込む」ボタンに正しいクエリが埋まる
   return c.html(
     <CafeList 
       cafes={cafes} 
