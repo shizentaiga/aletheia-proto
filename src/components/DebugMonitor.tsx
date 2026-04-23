@@ -30,7 +30,6 @@ const DEBUG_DESIGN = {
     COLOR: '#333',
     WEIGHT: 600,
     ACCENT_COLOR: '#4285F4',
-    QUERY_COLOR: '#E37400', // クエリパラメータ用のアクセントカラー
   },
   FOOTER: {
     FONT_SIZE: '0.6rem',
@@ -46,7 +45,6 @@ const UI_COPY = {
   LABELS: {
     EMAIL: 'Email',
     LOCATION: 'Location (CF)', 
-    QUERY: 'Active Query', // 追加：現在のクエリ状態
     MODE: 'MODE',
   },
   FALLBACK: {
@@ -70,7 +68,7 @@ interface DebugMonitorProps {
   user: any;
   env: any;
   location?: LocationInfo;
-  // デバッグ用に現在の検索パラメータを追加
+  // 💡 Note: Propsとしては受け取れる状態を維持しますが、表示からは除外します
   query?: {
     keyword?: string;
     region?: string;
@@ -100,18 +98,6 @@ export const DebugMonitor = ({ user, env, location, query }: DebugMonitorProps) 
         </div>
         <div style={{ fontWeight: DEBUG_DESIGN.VALUE.WEIGHT, wordBreak: 'break-all', color: DEBUG_DESIGN.VALUE.COLOR }}>
           {user?.email || UI_COPY.FALLBACK.GUEST_EMAIL}
-        </div>
-      </div>
-
-      {/* 🔍 追加：アクティブ・クエリセクション */}
-      <div>
-        <div style={{ color: DEBUG_DESIGN.LABEL.COLOR, fontSize: DEBUG_DESIGN.LABEL.FONT_SIZE, marginBottom: DEBUG_DESIGN.LABEL.MARGIN_B }}>
-          {UI_COPY.LABELS.QUERY}
-        </div>
-        <div style={{ fontWeight: DEBUG_DESIGN.VALUE.WEIGHT, color: DEBUG_DESIGN.VALUE.COLOR, lineHeight: 1.4 }}>
-          Kwd: <span style={{ color: DEBUG_DESIGN.VALUE.QUERY_COLOR }}>{query?.keyword || UI_COPY.FALLBACK.EMPTY}</span><br />
-          Reg: <span style={{ color: DEBUG_DESIGN.VALUE.QUERY_COLOR }}>{query?.region || UI_COPY.FALLBACK.EMPTY}</span><br />
-          Off: <span style={{ color: DEBUG_DESIGN.VALUE.QUERY_COLOR }}>{query?.offset ?? 0}</span>
         </div>
       </div>
 
