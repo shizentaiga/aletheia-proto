@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ALETHEIA Search Engine v2</title>
+    <style>
+        :root {
+            --primary: #4285F4;
+            --text-main: #111111;
+            --text-sub: #666666;
+            --border: #eeeeee;
+            --bg-page: #ffffff;
+            --bg-sub: #fafafa;
+            --round-md: 12px;
+            --space-xs: 8px;
+            --space-sm: 12px;
+            --space-md: 16px;
+        }
+
+        body {
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #fcfcfc;
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .main-container { width: 100%; max-width: 500px; }
+
+        /* 検索ボックス本体 */
+        .search-engine {
+            display: flex;
+            flex-direction: column;
+            gap: var(--space-sm);
+            padding: var(--space-md);
+            background: var(--bg-page);
+            border: 1px solid var(--border);
+            border-radius: var(--round-md);
+            box-shadow: 0 10px 40px rgba(0,0,0,0.06);
+            position: relative;
+        }
+
+        /* フィルターチップエリア */
+        .active-filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            min-height: 24px;
+        }
+
+        .filter-chip {
+            background: #eef4ff;
+            color: var(--primary);
+            border-radius: 999px;
+            padding: 4px 10px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s;
+        }
+        .filter-chip:hover { background: #dce7ff; }
+        .filter-chip::after { content: "✕"; font-size: 0.6rem; opacity: 0.6; }
+
+        /* グリッドレイアウト */
+        .grid-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: var(--space-xs);
+        }
+
+        @media (max-width: 480px) { .grid-row { grid-template-columns: 1fr; } }
+
+        /* セレクター */
+        .selector-btn {
+            background: var(--bg-sub);
+            border: 1px solid var(--border);
+            border-radius: var(--round-md);
+            padding: 10px 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: left;
+        }
+        .selector-btn:hover { border-color: #ccc; }
+
+        .label { font-size: 0.65rem; color: var(--text-sub); display: block; margin-bottom: 2px; text-transform: uppercase; }
+        .val-text { font-weight: bold; font-size: 0.9rem; }
+
+        /* ポップオーバー */
+        .dropdown-panel {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0; right: 0;
+            background: white;
+            border-radius: var(--round-md);
+            box-shadow: 0 15px 50px rgba(0,0,0,0.15);
+            border: 1px solid var(--border);
+            z-index: 100;
+            opacity: 0; visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s ease;
+        }
+        .dropdown-panel.show { opacity: 1; visibility: visible; transform: translateY(0); }
+
+        .option-item {
+            padding: 12px 16px;
+            font-size: 0.9rem;
+            border-bottom: 1px solid #f9f9f9;
+            cursor: pointer;
+        }
+        .option-item:hover { background: #f2f2f2; }
+
+        /* 入力窓 */
+        .input-row {
+            display: flex;
+            align-items: center;
+            background: #f5f5f5;
+            padding: 0 14px;
+            border-radius: 8px;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        .input-row:focus-within {
+            background: #fff;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(66, 133, 244, 0.1);
+        }
+
+        input[type="text"] {
+            flex: 1; border: none; outline: none;
+            padding: 12px 0; background: transparent;
+            font-size: 1rem; color: var(--text-main);
+        }
+
+        .search-icon {
+            color: var(--primary); font-size: 1.1rem;
+            background: none; border: none; cursor: pointer;
+        }
+
+        /* ユーティリティ */
+        #closer { position: fixed; inset: 0; z-index: 50; display: none; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="closer" onclick="closeAll()"></div>
+
+<div class="main-container">
+    <div class="search-engine">
+        <div id="active-filters" class="active-filters">
+            </div>
+
+        <div class="grid-row">
+            <div style="position: relative;">
+                <div class="selector-btn" onclick="toggleDropdown(event, 'area-panel')">
+                    <span class="label">📍 エリア</span>
+                    <span id="display-area" class="val-text">指定なし</span>
+                </div>
+                <div id="area-panel" class="dropdown-panel">
+                    <div class="option-item" onclick="updateState('area', '', '指定なし')">指定なし（全国）</div>
+                    <div class="option-item" onclick="updateState('area', 'tokyo', '東京')">東京</div>
+                    <div class="option-item" onclick="updateState('area', 'shibuya', '渋谷')">渋谷</div>
+                </div>
+            </div>
+
+            <div style="position: relative;">
+                <div class="selector-btn" onclick="toggleDropdown(event, 'feature-panel')">
+                    <span class="label">✨ 特徴</span>
+                    <span id="display-feature" class="val-text">指定なし</span>
+                </div>
+                <div id="feature-panel" class="dropdown-panel">
+                    <div class="option-item" onclick="updateState('feature', '', '指定なし')">指定なし</div>
+                    <div class="option-item" onclick="updateState('feature', 'wifi', 'Wi-Fi')">Wi-Fi</div>
+                    <div class="option-item" onclick="updateState('feature', 'power', '電源')">電源</div>
+                    <div class="option-item" onclick="updateState('feature', 'quiet', '静か')">静か</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="input-row">
+            <input type="text" id="keyword-input" placeholder="例：渋谷 カフェ WiFi" onkeydown="handleEnter(event)">
+            <button class="search-icon" onclick="triggerSearch()">🔍</button>
+        </div>
+    </div>
+
+    <div id="results-log" style="margin-top: 20px; font-size: 0.8rem; color: #aaa; font-family: monospace; border-top: 1px solid #eee; padding-top: 10px;">
+        Ready to search...
+    </div>
+</div>
+
+<script>
+    // ⑤ 技術的推奨：状態を一元管理
+    const state = {
+        area: { val: '', label: '' },
+        feature: { val: '', label: '' },
+        keyword: ''
+    };
+
+    function toggleDropdown(event, id) {
+        event.stopPropagation();
+        const panel = document.getElementById(id);
+        const isShow = panel.classList.contains('show');
+        closeAll();
+        if (!isShow) {
+            panel.classList.add('show');
+            document.getElementById('closer').style.display = 'block';
+        }
+    }
+
+    // ③ 選択時に即反映 & ① 状態の外出し
+    function updateState(key, val, label) {
+        state[key] = { val, label: val === '' ? '' : label };
+        
+        // 表示の更新
+        document.getElementById(`display-${key}`).innerText = label || '指定なし';
+        
+        renderChips();
+        closeAll();
+        triggerSearch(); // 即時実行
+    }
+
+    function renderChips() {
+        const container = document.getElementById('active-filters');
+        container.innerHTML = '';
+        
+        ['area', 'feature'].forEach(key => {
+            if (state[key].val !== '') {
+                const chip = document.createElement('span');
+                chip.className = 'filter-chip';
+                chip.innerText = state[key].label;
+                chip.onclick = () => updateState(key, '', '指定なし');
+                container.appendChild(chip);
+            }
+        });
+    }
+
+    function handleEnter(e) {
+        if (e.key === 'Enter') {
+            state.keyword = e.target.value;
+            triggerSearch();
+        }
+    }
+
+    function triggerSearch() {
+        state.keyword = document.getElementById('keyword-input').value;
+        const log = document.getElementById('results-log');
+        
+        // 実際にはここで fetch("/search?...") が走る
+        const query = `keyword=${state.keyword}&area=${state.area.val}&feature=${state.feature.val}`;
+        log.innerHTML = `<div>[API Request] /search?${query}</div>` + log.innerHTML;
+        
+        console.log("Searching with state:", state);
+    }
+
+    function closeAll() {
+        document.querySelectorAll('.dropdown-panel').forEach(p => p.classList.remove('show'));
+        document.getElementById('closer').style.display = 'none';
+    }
+</script>
+
+</body>
+</html>
