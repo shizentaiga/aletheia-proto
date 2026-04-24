@@ -9,14 +9,21 @@ export const SearchLogic = () => (
   <script dangerouslySetInnerHTML={{ __html: `
     /**
      * 1. 検索仕様（マスターデータ）
+     * 47都道府県フルセット：地方区分によるドリルダウン形式
      */
     const MASTER_DATA = {
       'region': {
         'title': 'エリアを選択',
         'options': {
           '全国': { value: '', sub: null },
-          '関東': { value: 'kanto', sub: ['東京都', '神奈川県', '千葉県', '埼玉県'] },
-          '関西': { value: 'kansai', sub: ['大阪府', '京都府', '兵庫県'] }
+          '北海道': { value: 'hokkaido', sub: ['北海道'] },
+          '東北': { value: 'tohoku', sub: ['青森県', '岩手県', '宮城県', '秋田県', '山形県', '福島県'] },
+          '関東': { value: 'kanto', sub: ['東京都', '神奈川県', '千葉県', '埼玉県', '茨城県', '栃木県', '群馬県'] },
+          '中部': { value: 'chubu', sub: ['新潟県', '富山県', '石川県', '福井県', '山梨県', '長野県', '岐阜県', '静岡県', '愛知県'] },
+          '近畿': { value: 'kinki', sub: ['大阪府', '京都府', '兵庫県', '奈良県', '滋賀県', '和歌山県', '三重県'] },
+          '中国': { value: 'chugoku', sub: ['鳥取県', '島根県', '岡山県', '広島県', '山口県'] },
+          '四国': { value: 'shikoku', sub: ['徳島県', '香川県', '愛媛県', '高知県'] },
+          '九州・沖縄': { value: 'kyushu', sub: ['福岡県', '佐賀県', '長崎県', '熊本県', '大分県', '宮崎県', '鹿児島県', '沖縄県'] }
         }
       },
       'category': {
@@ -29,38 +36,36 @@ export const SearchLogic = () => (
         }
       }
     };
-
+    
     /**
-     * 2. すべてのドリルダウンを一括で閉じる（受動的クローズ）
+     * 2. すべてのドリルダウンを一括で閉じる
      */
     function closeAllDrilldowns() {
       document.querySelectorAll('[id^="drilldown-"]').forEach(el => {
         el.style.display = 'none';
       });
-      // 💡 閉じた後はドキュメントの監視を解除してリソースを解放
       document.removeEventListener('click', closeAllDrilldowns);
     }
 
     /**
-     * 3. ドリルダウンメニューの表示切り替え（能動的開閉）
+     * 3. ドリルダウンメニューの表示切り替え
      */
     window.toggleDrilldown = function(mode) {
-      // 💡 重要：トリガー（エリア/特徴）のクリックが document に伝わって
-      // 即座に closeAllDrilldowns が発火するのを防ぐ
       if (window.event) window.event.stopPropagation();
 
       const container = document.getElementById('drilldown-' + mode);
       const isAlreadyOpen = container.style.display === 'block';
 
-      // 一旦すべてを掃除してリセット
       closeAllDrilldowns();
 
       if (!isAlreadyOpen) {
         renderDrilldownMenu(mode, container);
         container.style.display = 'block';
         
-        // 💡 どこをクリックしても閉じるように、一回限りの監視を開始
-        // setTimeout(0) で現在のクリックイベント処理が終わった後にリスナーを登録
+        // 💡 47都道府県対応：パネルが長い場合に備え、最大高さとスクロールを動的に保証
+        container.style.maxHeight = '400px';
+        container.style.overflowY = 'auto';
+        
         setTimeout(() => {
           document.addEventListener('click', closeAllDrilldowns, { once: true });
         }, 0);
@@ -72,8 +77,6 @@ export const SearchLogic = () => (
      */
     function renderDrilldownMenu(mode, container) {
       const modeData = MASTER_DATA[mode];
-      
-      // 💡 パネル本体をクリックしても「外側クリック」と判定されないよう伝播をガード
       container.onclick = (e) => e.stopPropagation();
 
       container.innerHTML = Object.keys(modeData.options).map(function(key) {
@@ -88,6 +91,7 @@ export const SearchLogic = () => (
         
         if (hasSub) {
           html += '<div class="sub-menu">';
+          // 💡 「○○地方全体」の選択肢
           html += '<div class="sub-item" style="color: #4285F4; font-weight: bold;" onclick="finalizeSelection(\\'' + mode + '\\', \\'' + data.value + '\\', \\'' + key + '\\')">' + key + '全体</div>';
           html += data.sub.map(function(item) {
             return '<div class="sub-item" onclick="finalizeSelection(\\'' + mode + '\\', \\'' + item + '\\', \\'' + item + '\\')">' + item + '</div>';
@@ -103,7 +107,6 @@ export const SearchLogic = () => (
      * 5. 階層アイテムのクリックハンドリング
      */
     window.handleItemClick = function(el, mode, key) {
-      // 💡 階層操作時のクリックが親に伝わって閉じないようにする
       if (window.event) window.event.stopPropagation();
       
       const data = MASTER_DATA[mode].options[key];
@@ -118,6 +121,9 @@ export const SearchLogic = () => (
         if (!isShowing) {
           subMenu.classList.add('show');
           arrow.classList.add('open');
+          
+          // 💡 サブメニュー展開時にスクロール位置を調整（見切れ防止）
+          el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
       } else {
         finalizeSelection(mode, data.value, key);
@@ -134,8 +140,6 @@ export const SearchLogic = () => (
       document.getElementById('current-' + mode + '-text').innerText = displayLabel;
       
       updateFilterChips();
-      
-      // 💡 選択確定時に全メニューを掃除
       closeAllDrilldowns();
       
       const form = document.querySelector('form');
