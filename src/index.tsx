@@ -27,7 +27,6 @@ import { Top, CafeList } from './pages/Top'
 import { sandboxApp } from './_sandbox/_router'
 
 // 【ポイント1】UIパーツの部品化
-// index.tsxの中に直接HTMLを書き込まず、外部コンポーネントを呼び出す形にします。
 import { SearchHeader } from './components/SearchHeader'
 
 import { authApp, AUTH_CONFIG, getCurrentUser } from './lib/auth'
@@ -70,7 +69,6 @@ app.get('/', async (c) => {
   // ユーザー情報とカフェ一覧を並列で取得
   const [user, cafeResult] = await Promise.all([
     getCurrentUser(db, sessionUserId),
-    // 💡 ビルドエラー回避のため、引数は既存の型(categoryなし)に合わせています
     fetchCafesByContext(db, { keyword, region, offset }) 
   ])
 
@@ -91,11 +89,14 @@ app.get('/', async (c) => {
 })
 
 /**
- * [GET] /search : HTMXからのリクエスト（部分更新用）
+ * [GET] /search : HTMXからのリクエスト（部分更新用）＋ リロード対策
  */
 app.get('/search', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   
+  // 💡 HTMXリクエストか判定（ヘッダーを確認）
+  const isHtmx = c.req.header('HX-Request') === 'true'
+
   const keyword = c.req.query('keyword') || ''
   const region = c.req.query('region') || ''
   const category = c.req.query('category') || ''
@@ -107,6 +108,19 @@ app.get('/search', async (c) => {
     offset,
     region
   })
+
+  // 💡 リロード等、HTMX以外での直接アクセスの場合は Top をフルレンダリング
+  if (!isHtmx) {
+    const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
+    const user = await getCurrentUser(db, sessionUserId)
+    return c.render(
+      <Top 
+        user={user} env={c.env} cafes={cafes} totalCount={totalCount}
+        keyword={keyword} region={region} category={category}
+      />,
+      { title: '検索結果' }
+    )
+  }
 
   // 【ポイント2】HTMXレスポンスの整理
   // 最初の検索時(offset=0)は、件数表示(SearchHeader)とリストの両方を返します。
