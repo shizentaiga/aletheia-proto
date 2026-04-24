@@ -23,9 +23,12 @@
 import { Hono } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { renderer } from './renderer'
-import { Top, CafeList, PAGE_DESIGN } from './pages/Top' 
-import { SPACE } from './styles/theme'
+import { Top, CafeList } from './pages/Top' 
 import { sandboxApp } from './_sandbox/_router'
+
+// 【ポイント1】UIパーツの部品化
+// index.tsxの中に直接HTMLを書き込まず、外部コンポーネントを呼び出す形にします。
+import { SearchHeader } from './components/SearchHeader'
 
 import { authApp, AUTH_CONFIG, getCurrentUser } from './lib/auth'
 import { fetchCafesByContext } from './db/queries'
@@ -44,12 +47,13 @@ app.route('/', authApp)
 app.route('/_sandbox', sandboxApp)
 
 /**
- * [GET] /
+ * [GET] / : 初期表示（フルレンダリング）
  */
 app.get('/', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
 
+  // Cloudflareから位置情報を取得
   const cf = c.req.raw.cf as any 
   const locationInfo = {
     region: cf?.region || 'unknown',
@@ -57,17 +61,20 @@ app.get('/', async (c) => {
     colo: cf?.colo || 'unknown'
   }
 
+  // クエリパラメータの取得（検索条件）
   const keyword = c.req.query('keyword') || ''
   const region = c.req.query('region') || '' 
-  const category = c.req.query('category') || '' // 👈 追加
+  const category = c.req.query('category') || ''
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
+  // ユーザー情報とカフェ一覧を並列で取得
   const [user, cafeResult] = await Promise.all([
     getCurrentUser(db, sessionUserId),
-    // 💡 category をクエリに含める（DB側の対応に合わせて拡張可能）
+    // 💡 ビルドエラー回避のため、引数は既存の型(categoryなし)に合わせています
     fetchCafesByContext(db, { keyword, region, offset }) 
   ])
 
+  // ページ全体を表示
   return c.render(
     <Top 
       user={user} 
@@ -77,55 +84,39 @@ app.get('/', async (c) => {
       location={locationInfo}
       keyword={keyword}
       region={region}
+      category={category}
     />, 
     { title: 'メインポータル' }
   )
 })
 
 /**
- * [GET] /search
- * HTMX専用：部分更新
+ * [GET] /search : HTMXからのリクエスト（部分更新用）
  */
 app.get('/search', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   
   const keyword = c.req.query('keyword') || ''
   const region = c.req.query('region') || ''
-  const category = c.req.query('category') || '' // 👈 追加
+  const category = c.req.query('category') || ''
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
+  // 指定された条件でDBからカフェを検索
   const { cafes, totalCount } = await fetchCafesByContext(db, { 
     keyword, 
     offset,
-    region 
+    region
   })
 
-  // 💡 offset=0（新規検索）の時
+  // 【ポイント2】HTMXレスポンスの整理
+  // 最初の検索時(offset=0)は、件数表示(SearchHeader)とリストの両方を返します。
   if (offset === 0) {
     return c.html(
       <>
-        <div id="list-header" style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center', 
-          marginBottom: SPACE.SM 
-        }}>
-          <h2 style={{ 
-            fontSize: PAGE_DESIGN.SECTION_TITLE.FONT_SIZE, 
-            color: PAGE_DESIGN.SECTION_TITLE.COLOR, 
-            fontWeight: PAGE_DESIGN.SECTION_TITLE.WEIGHT 
-          }}>
-            検索結果 
-            <span style={{ 
-              color: PAGE_DESIGN.COUNTER.COLOR, 
-              fontWeight: PAGE_DESIGN.COUNTER.WEIGHT, 
-              marginLeft: SPACE.XS 
-            }}>
-              全 {totalCount} 件
-            </span>
-          </h2>
-        </div>
-
+        {/* インラインHTMLを排除し、SearchHeader部品を呼び出し */}
+        <SearchHeader totalCount={totalCount} />
+        
+        {/* 検索結果のリスト表示 */}
         <div id="cafe-cards-root">
           <CafeList 
             cafes={cafes} 
@@ -133,13 +124,14 @@ app.get('/search', async (c) => {
             offset={offset} 
             keyword={keyword} 
             region={region}
+            category={category}
           />
         </div>
       </>
     )
   }
 
-  // 💡 offset > 0（さらに読み込む）
+  // 「さらに読み込む」ボタン押下時は、追加分のリスト(CafeList)のみを返します。
   return c.html(
     <CafeList 
       cafes={cafes} 
@@ -147,6 +139,7 @@ app.get('/search', async (c) => {
       offset={offset} 
       keyword={keyword} 
       region={region}
+      category={category}
     />
   )
 })
