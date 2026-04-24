@@ -72,6 +72,7 @@ interface DebugMonitorProps {
   query?: {
     keyword?: string;
     region?: string;
+    category?: string; // 🌟 これを追加
     offset?: number;
   };
 }

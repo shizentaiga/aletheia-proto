@@ -7,35 +7,46 @@
  * =============================================================================
  */
 
+
 /** @jsxImportSource hono/jsx */
 import { STYLES, SPACE } from '../styles/theme'
 
-// -----------------------------------------------------------------------------
-// 1. デザイン設定
-// -----------------------------------------------------------------------------
 const SEARCH_DESIGN = {
   SEARCH_ICON_BTN: {
     COLOR: '#4285F4',
     FONT_SIZE: '1.2rem',
     BG: 'transparent',
     BORDER: 'none',
+  },
+  CHIP_AREA: {
+    display: 'flex',
+    gap: SPACE.XS,
+    flexWrap: 'wrap' as const,
+    minHeight: '24px',
+    marginBottom: SPACE.XS,
+    padding: `0 ${SPACE.XS}`
+  },
+  // 🌟 追加：ドリルダウンコンテナの基本スタイル
+  DRILLDOWN_WRAPPER: {
+    width: '100%',
+    background: '#fff',
+    borderRadius: '8px',
+    overflow: 'hidden',
+    display: 'none', // 初期状態は非表示
+    border: '1px solid #eee',
+    marginTop: '4px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
   }
 } as const;
 
-// -----------------------------------------------------------------------------
-// 2. UIコピー
-// -----------------------------------------------------------------------------
 const UI_COPY = {
-  PLACEHOLDER: '店名や特徴で検索...',
+  PLACEHOLDER: '店名や住所で検索...',
   SEARCH_LABEL: '🔍',
   LABEL_AREA: '📍 エリア',
-  LABEL_CAT: '🏷 カテゴリ',
+  LABEL_FEAT: '✨ 特徴',
   DEFAULT_VAL: '指定なし'
 } as const;
 
-// -----------------------------------------------------------------------------
-// 3. メインコンポーネント
-// -----------------------------------------------------------------------------
 export const SearchSection = () => {
   const COMMON_HX_ATTRS = {
     'hx-get': "/search",
@@ -52,7 +63,7 @@ export const SearchSection = () => {
         {...COMMON_HX_ATTRS}
         hx-trigger="submit"
       >
-        {/* 1段目：ボトムシート起動ボタン（グリッド） */}
+        {/* 1段目：トリガーエリア */}
         <div style={{ 
           display: 'grid', 
           gridTemplateColumns: '1fr 1fr', 
@@ -60,29 +71,37 @@ export const SearchSection = () => {
           width: '100%',
           marginBottom: SPACE.XS 
         }}>
-          {/* エリア選択ボタン */}
-          <div 
-            id="area-trigger"
-            style={STYLES.COMPONENTS.SELECT_REPLACEMENT}
-            // 💡 後ほどTop.tsxで実装するボトムシート表示ロジックを呼び出す
-            onclick="document.getElementById('search-overlay').classList.add('show')"
-          >
-            <span style={{ fontSize: '0.7rem', display: 'block', color: '#999' }}>{UI_COPY.LABEL_AREA}</span>
-            <span id="current-area-text" style={{ fontWeight: 'bold' }}>{UI_COPY.DEFAULT_VAL}</span>
+          {/* エリア選択ブロック */}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div 
+              id="area-trigger"
+              style={STYLES.COMPONENTS.SELECT_REPLACEMENT}
+              onclick="toggleDrilldown('region')"
+            >
+              <span style={{ fontSize: '0.7rem', display: 'block', color: '#999' }}>{UI_COPY.LABEL_AREA}</span>
+              <span id="current-region-text" style={{ fontWeight: 'bold' }}>{UI_COPY.DEFAULT_VAL}</span>
+            </div>
+            {/* 🌟 注入用コンテナ（エリア用） */}
+            <div id="drilldown-region" style={SEARCH_DESIGN.DRILLDOWN_WRAPPER}></div>
           </div>
 
-          {/* カテゴリ選択ボタン */}
-          <div 
-            id="cat-trigger"
-            style={STYLES.COMPONENTS.SELECT_REPLACEMENT}
-            onclick="document.getElementById('search-overlay').classList.add('show')"
-          >
-            <span style={{ fontSize: '0.7rem', display: 'block', color: '#999' }}>{UI_COPY.LABEL_CAT}</span>
-            <span id="current-cat-text" style={{ fontWeight: 'bold' }}>{UI_COPY.DEFAULT_VAL}</span>
+          {/* 特徴選択ブロック */}
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <div 
+              id="feat-trigger" 
+              style={STYLES.COMPONENTS.SELECT_REPLACEMENT}
+              onclick="toggleDrilldown('category')"
+            >
+              <span style={{ fontSize: '0.7rem', display: 'block', color: '#999' }}>{UI_COPY.LABEL_FEAT}</span>
+              <span id="current-category-text" style={{ fontWeight: 'bold' }}>{UI_COPY.DEFAULT_VAL}</span>
+            </div>
+            {/* 🌟 注入用コンテナ（特徴用） */}
+            <div id="drilldown-category" style={SEARCH_DESIGN.DRILLDOWN_WRAPPER}></div>
           </div>
         </div>
 
-        {/* 2段目：キーワード入力エリア */}
+        <div id="active-filters" style={SEARCH_DESIGN.CHIP_AREA}></div>
+
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
@@ -99,7 +118,6 @@ export const SearchSection = () => {
             style={{ ...STYLES.COMPONENTS.INPUT, padding: `${SPACE.SM} 0` }} 
           />
           
-          {/* ボトムシートで選択された値を保持する隠しフィールド */}
           <input type="hidden" name="region" id="hidden-region" value="" />
           <input type="hidden" name="category" id="hidden-category" value="" />
           <input type="hidden" name="offset" value="0" />
@@ -119,7 +137,6 @@ export const SearchSection = () => {
           </button>
         </div>
       </form>
-
     </div>
   );
 }

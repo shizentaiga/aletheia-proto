@@ -7,6 +7,8 @@
  * =============================================================================
  */
 
+
+//  📁 File Path: src/styles/theme.ts
 // -----------------------------------------------------------------------------
 // 1. デザイナー向け基本設定 (Brand Identity & Tokens)
 // -----------------------------------------------------------------------------
@@ -19,12 +21,12 @@ const COLORS = {
   TEXT_MAIN: '#111111',  // メインテキスト
   TEXT_SUB: '#666666',   // 補足テキスト
   TEXT_LIGHT: '#999999', // 非常に薄いテキスト
-  BORDER: '#eeeeee',     // 標準境界線
+  BORDER: '#eeeeee',      // 標準境界線
   BG_PAGE: '#ffffff',    // ページ背景
   BG_SUB: '#fafafa',     // サブ背景（モニター等）
-  // --- 追加 ---
   OVERLAY: 'rgba(0, 0, 0, 0.4)', // ボトムシート背景
   BG_INFO: '#e8f0fe',    // 選択状態の背景（薄い青）
+  CHIP_TEXT: '#1a73e8',  // チップ内の強調テキスト色
 } as const;
 
 /**
@@ -44,7 +46,6 @@ const EFFECTS = {
   SHADOW_SOFT: '0 8px 30px rgba(0,0,0,0.04)',
   SHADOW_HOVER: '0 8px 20px rgba(0,0,0,0.06)',
   TRANSITION: 'all 0.18s ease',
-  // --- 追加 ---
   Z_INDEX: {
     STICKY: 20,
     OVERLAY: 100,
@@ -95,7 +96,7 @@ export const STYLES = {
     },
     STICKY_BAR: {
       position: 'sticky' as const,
-      top: 0, // 上部に吸着
+      top: 0,
       zIndex: EFFECTS.Z_INDEX.STICKY,
       background: 'rgba(255,255,255,0.92)',
       backdropFilter: 'blur(8px)',
@@ -104,15 +105,14 @@ export const STYLES = {
     },
     SEARCH_BOX: {
       display: 'flex',
-      flexDirection: 'column' as const, // 2段構成に対応
+      flexDirection: 'column' as const,
       gap: SPACE.XS,
       padding: SPACE.MD,
       background: COLORS.BG_PAGE,
       border: `1px solid ${COLORS.BORDER}`,
-      borderRadius: EFFECTS.ROUND_MD, // グリッドに合うよう少し角を立てる
+      borderRadius: EFFECTS.ROUND_MD,
       boxShadow: EFFECTS.SHADOW_SOFT,
     },
-    // --- 追加：ボトムシート用スタイル ---
     OVERLAY: {
       position: 'fixed' as const,
       inset: 0,
@@ -165,7 +165,7 @@ export const STYLES = {
       fontSize: '1rem', 
       background: 'transparent' 
     },
-    SELECT_REPLACEMENT: { // Selectをボタンに置き換えるためのスタイル
+    SELECT_REPLACEMENT: {
       background: COLORS.BG_SUB,
       border: `1px solid ${COLORS.BORDER}`,
       borderRadius: EFFECTS.ROUND_MD,
@@ -174,6 +174,19 @@ export const STYLES = {
       color: COLORS.TEXT_SUB,
       cursor: 'pointer',
       textAlign: 'left' as const,
+      transition: EFFECTS.TRANSITION,
+    },
+    // 🌟 フィルタ用チップの定義
+    FILTER_CHIP: {
+      display: 'inline-flex',
+      alignItems: 'center',
+      background: COLORS.BG_INFO,
+      color: COLORS.CHIP_TEXT,
+      padding: '4px 12px',
+      borderRadius: EFFECTS.ROUND_FULL,
+      fontSize: '0.75rem',
+      fontWeight: 'bold' as const,
+      border: 'none',
     },
     AUTH_BTN: { 
       padding: '8px 20px', 
@@ -195,6 +208,14 @@ export const STYLES = {
       display: 'block',
       textDecoration: 'none',
       color: 'inherit',
+    },
+    SHEET_ITEM: {
+      padding: SPACE.MD,
+      borderBottom: `1px solid ${COLORS.BORDER}`,
+      cursor: 'pointer',
+      fontSize: '0.95rem',
+      transition: 'background 0.2s',
+      color: COLORS.TEXT_MAIN,
     }
   }
 } as const;
