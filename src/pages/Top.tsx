@@ -7,8 +7,6 @@
  * =============================================================================
  */
 
-//  📁 File Path: src/pages/Top.tsx
-
 /** @jsxImportSource hono/jsx */
 import { STYLES, SPACE } from '../styles/theme'
 import type { Cafe } from '../db/queries'

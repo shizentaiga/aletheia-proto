@@ -7,7 +7,6 @@
  * =============================================================================
  */
 
-
 /** @jsxImportSource hono/jsx */
 import { STYLES, SPACE } from '../styles/theme'
 
@@ -26,16 +25,21 @@ const SEARCH_DESIGN = {
     marginBottom: SPACE.XS,
     padding: `0 ${SPACE.XS}`
   },
-  // 🌟 追加：ドリルダウンコンテナの基本スタイル
+  // 🌟 修正：ドリルダウンコンテナを絶対配置（オーバーレイ）化
   DRILLDOWN_WRAPPER: {
+    position: 'absolute' as const, // 💡 1. 親を基準に浮かせる
+    top: '100%',                  // 💡 2. トリガーの真下に配置
+    left: 0,
+    right: 0,
+    zIndex: 100,                  // 💡 3. theme.ts の EFFECTS.Z_INDEX.OVERLAY に相当
     width: '100%',
     background: '#fff',
     borderRadius: '8px',
     overflow: 'hidden',
-    display: 'none', // 初期状態は非表示
+    display: 'none',
     border: '1px solid #eee',
     marginTop: '4px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+    boxShadow: '0 10px 25px rgba(0,0,0,0.1)' // 💡 4. 浮遊感を出すために影を強化
   }
 } as const;
 
@@ -72,7 +76,8 @@ export const SearchSection = () => {
           marginBottom: SPACE.XS 
         }}>
           {/* エリア選択ブロック */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {/* 💡 修正：パネルの基準点にするため position: relative を追加 */}
+          <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
             <div 
               id="area-trigger"
               style={STYLES.COMPONENTS.SELECT_REPLACEMENT}
@@ -81,12 +86,13 @@ export const SearchSection = () => {
               <span style={{ fontSize: '0.7rem', display: 'block', color: '#999' }}>{UI_COPY.LABEL_AREA}</span>
               <span id="current-region-text" style={{ fontWeight: 'bold' }}>{UI_COPY.DEFAULT_VAL}</span>
             </div>
-            {/* 🌟 注入用コンテナ（エリア用） */}
+            {/* 注入用コンテナ（エリア用） */}
             <div id="drilldown-region" style={SEARCH_DESIGN.DRILLDOWN_WRAPPER}></div>
           </div>
 
           {/* 特徴選択ブロック */}
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
+          {/* 💡 修正：パネルの基準点にするため position: relative を追加 */}
+          <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
             <div 
               id="feat-trigger" 
               style={STYLES.COMPONENTS.SELECT_REPLACEMENT}
@@ -95,7 +101,7 @@ export const SearchSection = () => {
               <span style={{ fontSize: '0.7rem', display: 'block', color: '#999' }}>{UI_COPY.LABEL_FEAT}</span>
               <span id="current-category-text" style={{ fontWeight: 'bold' }}>{UI_COPY.DEFAULT_VAL}</span>
             </div>
-            {/* 🌟 注入用コンテナ（特徴用） */}
+            {/* 注入用コンテナ（特徴用） */}
             <div id="drilldown-category" style={SEARCH_DESIGN.DRILLDOWN_WRAPPER}></div>
           </div>
         </div>

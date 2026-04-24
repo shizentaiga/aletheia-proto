@@ -1,14 +1,14 @@
-/** @jsxImportSource hono/jsx */
-
 /**
  * 検索画面のフロントエンドロジック（JavaScript）を担当するコンポーネント
  * ドリルダウンメニューの制御、マスターデータの保持、HTMXのトリガー実行などを行う
+ * 📁 File Path: src/components/SearchLogic.tsx
  */
+
+/** @jsxImportSource hono/jsx */
 export const SearchLogic = () => (
   <script dangerouslySetInnerHTML={{ __html: `
     /**
-     * 1. 検索仕様（マスターデータ）の定義
-     * 将来的には lib/constants.ts から注入する形への変更を推奨
+     * 1. 検索仕様（マスターデータ）
      */
     const MASTER_DATA = {
       'region': {
@@ -31,30 +31,51 @@ export const SearchLogic = () => (
     };
 
     /**
-     * 2. ドリルダウンメニューの表示切り替え
-     * @param {string} mode - 'region' または 'category'
+     * 2. すべてのドリルダウンを一括で閉じる（受動的クローズ）
+     */
+    function closeAllDrilldowns() {
+      document.querySelectorAll('[id^="drilldown-"]').forEach(el => {
+        el.style.display = 'none';
+      });
+      // 💡 閉じた後はドキュメントの監視を解除してリソースを解放
+      document.removeEventListener('click', closeAllDrilldowns);
+    }
+
+    /**
+     * 3. ドリルダウンメニューの表示切り替え（能動的開閉）
      */
     window.toggleDrilldown = function(mode) {
-      const container = document.getElementById('drilldown-' + mode);
-      const otherMode = mode === 'region' ? 'category' : 'region';
-      
-      // 反対側のメニューが開いていれば閉じる
-      document.getElementById('drilldown-' + otherMode).style.display = 'none';
+      // 💡 重要：トリガー（エリア/特徴）のクリックが document に伝わって
+      // 即座に closeAllDrilldowns が発火するのを防ぐ
+      if (window.event) window.event.stopPropagation();
 
-      if (container.style.display === 'block') {
-        container.style.display = 'none';
-      } else {
+      const container = document.getElementById('drilldown-' + mode);
+      const isAlreadyOpen = container.style.display === 'block';
+
+      // 一旦すべてを掃除してリセット
+      closeAllDrilldowns();
+
+      if (!isAlreadyOpen) {
         renderDrilldownMenu(mode, container);
         container.style.display = 'block';
+        
+        // 💡 どこをクリックしても閉じるように、一回限りの監視を開始
+        // setTimeout(0) で現在のクリックイベント処理が終わった後にリスナーを登録
+        setTimeout(() => {
+          document.addEventListener('click', closeAllDrilldowns, { once: true });
+        }, 0);
       }
     };
 
     /**
-     * 3. メニュー項目の動的生成
+     * 4. メニュー項目の動的生成
      */
     function renderDrilldownMenu(mode, container) {
       const modeData = MASTER_DATA[mode];
       
+      // 💡 パネル本体をクリックしても「外側クリック」と判定されないよう伝播をガード
+      container.onclick = (e) => e.stopPropagation();
+
       container.innerHTML = Object.keys(modeData.options).map(function(key) {
         const data = modeData.options[key];
         const hasSub = !!data.sub;
@@ -67,9 +88,7 @@ export const SearchLogic = () => (
         
         if (hasSub) {
           html += '<div class="sub-menu">';
-          // 親カテゴリ全体の選択肢（例：関東全体）
           html += '<div class="sub-item" style="color: #4285F4; font-weight: bold;" onclick="finalizeSelection(\\'' + mode + '\\', \\'' + data.value + '\\', \\'' + key + '\\')">' + key + '全体</div>';
-          // 子カテゴリ（例：東京都、神奈川県...）
           html += data.sub.map(function(item) {
             return '<div class="sub-item" onclick="finalizeSelection(\\'' + mode + '\\', \\'' + item + '\\', \\'' + item + '\\')">' + item + '</div>';
           }).join('');
@@ -81,16 +100,18 @@ export const SearchLogic = () => (
     }
 
     /**
-     * 4. 階層アイテムのクリックハンドリング
+     * 5. 階層アイテムのクリックハンドリング
      */
     window.handleItemClick = function(el, mode, key) {
+      // 💡 階層操作時のクリックが親に伝わって閉じないようにする
+      if (window.event) window.event.stopPropagation();
+      
       const data = MASTER_DATA[mode].options[key];
       if (data.sub) {
         const subMenu = el.nextElementSibling;
         const arrow = el.querySelector('.arrow');
         const isShowing = subMenu.classList.contains('show');
         
-        // 他の開いているサブメニューをリセット
         document.querySelectorAll('.sub-menu').forEach(m => m.classList.remove('show'));
         document.querySelectorAll('.arrow').forEach(a => a.classList.remove('open'));
 
@@ -104,21 +125,19 @@ export const SearchLogic = () => (
     };
 
     /**
-     * 5. 選択の確定とHTMXリクエストの実行
+     * 6. 選択の確定
      */
     window.finalizeSelection = function(mode, val, label) {
       const displayLabel = (val === '' || label === '全国') ? '指定なし' : label;
       
-      // 隠しフィールドに値をセットし、画面上のテキストを更新
       document.getElementById('hidden-' + mode).value = val;
       document.getElementById('current-' + mode + '-text').innerText = displayLabel;
       
       updateFilterChips();
       
-      // メニューを閉じる
-      document.getElementById('drilldown-' + mode).style.display = 'none';
+      // 💡 選択確定時に全メニューを掃除
+      closeAllDrilldowns();
       
-      // 検索フォームをHTMXで自動送信
       const form = document.querySelector('form');
       if (window.htmx) {
         window.htmx.trigger(form, 'submit');
@@ -126,7 +145,7 @@ export const SearchLogic = () => (
     };
 
     /**
-     * 6. 選択済み条件のチップ（バッジ）表示更新
+     * 7. チップ更新
      */
     function updateFilterChips() {
       const chipArea = document.getElementById('active-filters');
