@@ -1,5 +1,5 @@
 {
-  "name": " -proto",
+  "name": "aletheia-proto",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
@@ -7,7 +7,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260404.1",
-    "wrangler": "^4.84.1"
+    "wrangler": "^4.85.0"
   },
   "dependencies": {
     "@geolonia/normalize-japanese-addresses": "^3.1.3",
