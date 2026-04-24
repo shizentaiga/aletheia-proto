@@ -22,6 +22,9 @@ const COLORS = {
   BORDER: '#eeeeee',     // 標準境界線
   BG_PAGE: '#ffffff',    // ページ背景
   BG_SUB: '#fafafa',     // サブ背景（モニター等）
+  // --- 追加 ---
+  OVERLAY: 'rgba(0, 0, 0, 0.4)', // ボトムシート背景
+  BG_INFO: '#e8f0fe',    // 選択状態の背景（薄い青）
 } as const;
 
 /**
@@ -32,7 +35,7 @@ const FONTS = {
 } as const;
 
 /**
- * エフェクト（影、角丸）
+ * エフェクト（影、角丸、重なり順）
  */
 const EFFECTS = {
   ROUND_FULL: '999px',
@@ -41,6 +44,12 @@ const EFFECTS = {
   SHADOW_SOFT: '0 8px 30px rgba(0,0,0,0.04)',
   SHADOW_HOVER: '0 8px 20px rgba(0,0,0,0.06)',
   TRANSITION: 'all 0.18s ease',
+  // --- 追加 ---
+  Z_INDEX: {
+    STICKY: 20,
+    OVERLAY: 100,
+    SHEET: 110,
+  }
 } as const;
 
 // -----------------------------------------------------------------------------
@@ -86,8 +95,8 @@ export const STYLES = {
     },
     STICKY_BAR: {
       position: 'sticky' as const,
-      top: SPACE.SM,
-      zIndex: 20,
+      top: 0, // 上部に吸着
+      zIndex: EFFECTS.Z_INDEX.STICKY,
       background: 'rgba(255,255,255,0.92)',
       backdropFilter: 'blur(8px)',
       padding: `${SPACE.SM} 0`,
@@ -95,13 +104,31 @@ export const STYLES = {
     },
     SEARCH_BOX: {
       display: 'flex',
+      flexDirection: 'column' as const, // 2段構成に対応
       gap: SPACE.XS,
-      padding: '10px 20px',
+      padding: SPACE.MD,
       background: COLORS.BG_PAGE,
       border: `1px solid ${COLORS.BORDER}`,
-      borderRadius: EFFECTS.ROUND_FULL,
+      borderRadius: EFFECTS.ROUND_MD, // グリッドに合うよう少し角を立てる
       boxShadow: EFFECTS.SHADOW_SOFT,
-      alignItems: 'center',
+    },
+    // --- 追加：ボトムシート用スタイル ---
+    OVERLAY: {
+      position: 'fixed' as const,
+      inset: 0,
+      background: COLORS.OVERLAY,
+      zIndex: EFFECTS.Z_INDEX.OVERLAY,
+      display: 'flex',
+      alignItems: 'flex-end',
+    },
+    BOTTOM_SHEET: {
+      width: '100%',
+      background: COLORS.BG_PAGE,
+      borderRadius: `${EFFECTS.ROUND_LG} ${EFFECTS.ROUND_LG} 0 0`,
+      maxHeight: '80vh',
+      display: 'flex',
+      flexDirection: 'column' as const,
+      zIndex: EFFECTS.Z_INDEX.SHEET,
     },
     LIST: { 
       display: 'flex', 
@@ -138,14 +165,15 @@ export const STYLES = {
       fontSize: '1rem', 
       background: 'transparent' 
     },
-    SELECT: { 
-      border: 'none', 
-      background: 'transparent', 
-      color: COLORS.TEXT_SUB, 
-      fontSize: '0.85rem', 
-      cursor: 'pointer', 
-      borderLeft: `1px solid ${COLORS.BORDER}`, 
-      paddingLeft: SPACE.SM 
+    SELECT_REPLACEMENT: { // Selectをボタンに置き換えるためのスタイル
+      background: COLORS.BG_SUB,
+      border: `1px solid ${COLORS.BORDER}`,
+      borderRadius: EFFECTS.ROUND_MD,
+      padding: `${SPACE.SM} ${SPACE.MD}`,
+      fontSize: '0.85rem',
+      color: COLORS.TEXT_SUB,
+      cursor: 'pointer',
+      textAlign: 'left' as const,
     },
     AUTH_BTN: { 
       padding: '8px 20px', 

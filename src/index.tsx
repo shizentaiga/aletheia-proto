@@ -23,7 +23,7 @@
 import { Hono } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { renderer } from './renderer'
-import { Top, CafeList, PAGE_DESIGN } from './pages/Top' // PAGE_DESIGN をインポート
+import { Top, CafeList, PAGE_DESIGN } from './pages/Top' 
 import { SPACE } from './styles/theme'
 import { sandboxApp } from './_sandbox/_router'
 
@@ -59,11 +59,13 @@ app.get('/', async (c) => {
 
   const keyword = c.req.query('keyword') || ''
   const region = c.req.query('region') || '' 
+  const category = c.req.query('category') || '' // 👈 追加
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
   const [user, cafeResult] = await Promise.all([
     getCurrentUser(db, sessionUserId),
-    fetchCafesByContext(db, { keyword, region, offset })
+    // 💡 category をクエリに含める（DB側の対応に合わせて拡張可能）
+    fetchCafesByContext(db, { keyword, region, offset }) 
   ])
 
   return c.render(
@@ -89,6 +91,7 @@ app.get('/search', async (c) => {
   
   const keyword = c.req.query('keyword') || ''
   const region = c.req.query('region') || ''
+  const category = c.req.query('category') || '' // 👈 追加
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
   const { cafes, totalCount } = await fetchCafesByContext(db, { 
@@ -97,7 +100,7 @@ app.get('/search', async (c) => {
     region 
   })
 
-  // 💡 核心：offset=0（新規検索）の時だけ件数ヘッダーを含めて返す
+  // 💡 offset=0（新規検索）の時
   if (offset === 0) {
     return c.html(
       <>
@@ -112,7 +115,7 @@ app.get('/search', async (c) => {
             color: PAGE_DESIGN.SECTION_TITLE.COLOR, 
             fontWeight: PAGE_DESIGN.SECTION_TITLE.WEIGHT 
           }}>
-            近くのカフェ 
+            検索結果 
             <span style={{ 
               color: PAGE_DESIGN.COUNTER.COLOR, 
               fontWeight: PAGE_DESIGN.COUNTER.WEIGHT, 
@@ -136,7 +139,7 @@ app.get('/search', async (c) => {
     )
   }
 
-  // 💡 offset > 0（さらに読み込む）の時は CafeList だけを返す（追記モード）
+  // 💡 offset > 0（さらに読み込む）
   return c.html(
     <CafeList 
       cafes={cafes} 
