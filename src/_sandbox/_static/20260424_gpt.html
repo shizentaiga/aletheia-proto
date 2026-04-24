@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Search UI</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f7f7f7;
+    padding: 20px;
+  }
+
+  .container {
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  .search-box {
+    background: #fff;
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+
+  .search-box input {
+    border: none;
+    outline: none;
+    width: 100%;
+    font-size: 16px;
+  }
+
+  .search-icon {
+    margin-right: 8px;
+    color: #888;
+  }
+
+  .section-title {
+    margin: 20px 0 8px;
+    font-size: 14px;
+    color: #666;
+  }
+
+  .chip-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip {
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #fff;
+    border: 1px solid #ddd;
+    font-size: 14px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+
+  .chip.active {
+    background: #333;
+    color: #fff;
+    border-color: #333;
+  }
+
+  .chip:hover {
+    background: #eee;
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- 検索バー -->
+  <div class="search-box">
+    <span class="search-icon">🔍</span>
+    <input type="text" placeholder="エリア・店舗名・特徴で検索（例：渋谷 カフェ WiFi）">
+  </div>
+
+  <!-- 人気エリア -->
+  <div class="section-title">よく検索されているエリア</div>
+  <div class="chip-group">
+    <div class="chip">渋谷</div>
+    <div class="chip">新宿</div>
+    <div class="chip">池袋</div>
+  </div>
+
+  <!-- フィルタ -->
+  <div class="section-title">フィルタ</div>
+  <div class="chip-group">
+    <div class="chip">📍 渋谷</div>
+    <div class="chip">☕ カフェ</div>
+    <div class="chip">📶 WiFi</div>
+    <div class="chip">🔌 電源</div>
+    <div class="chip">👶 赤ちゃんOK</div>
+  </div>
+
+</div>
+
+<script>
+  // チップ選択トグル
+  document.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      chip.classList.toggle('active');
+    });
+  });
+</script>
+
+</body>
+</html>

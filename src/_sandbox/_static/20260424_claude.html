@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Search UI Prototype</title>
+    <style>
+        :root {
+            --primary-color: #4285F4;
+            --bg-info: #e8f0fe;
+            --border-info: #4285F4;
+            --text-main: #333;
+            --text-sub: #666;
+            --bg-gray: #f5f5f5;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f0f2f5; color: var(--text-main); line-height: 1.5; }
+
+        /* メインコンテナ：スマホ画面を模したサイズ */
+        .phone-mock {
+            max-width: 400px;
+            margin: 0 auto;
+            background: #fff;
+            min-height: 100vh;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 検索バーセクション */
+        .search-bar {
+            padding: 16px;
+            background: #fff;
+            border-bottom: 1px solid #eee;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        .row1 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+
+        .pill-btn {
+            background: var(--bg-gray);
+            border: 1px solid transparent;
+            padding: 10px 12px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            color: var(--text-sub);
+            cursor: pointer;
+            text-align: left;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            transition: all 0.2s;
+        }
+
+        .pill-btn.active {
+            background: var(--bg-info);
+            border-color: var(--border-info);
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        .search-input-row {
+            display: flex;
+            align-items: center;
+            background: var(--bg-gray);
+            border-radius: 8px;
+            padding: 0 12px;
+        }
+
+        .search-input-row input {
+            flex: 1;
+            border: none;
+            background: transparent;
+            padding: 12px 8px;
+            font-size: 0.95rem;
+            outline: none;
+        }
+
+        /* ボトムシート（オーバーレイ） */
+        .overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0,0,0,0.4);
+            display: none;
+            align-items: flex-end;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .overlay.show { display: flex; opacity: 1; }
+
+        .sheet {
+            width: 100%;
+            background: #fff;
+            border-radius: 16px 16px 0 0;
+            max-height: 80%;
+            display: flex;
+            flex-direction: column;
+            transform: translateY(100%);
+            transition: transform 0.3s ease-out;
+        }
+
+        .overlay.show .sheet { transform: translateY(0); }
+
+        .sheet-header {
+            padding: 16px;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .sheet-body {
+            flex: 1;
+            overflow-y: auto;
+            padding-bottom: 40px;
+        }
+
+        .list-item {
+            padding: 16px;
+            border-bottom: 1px solid #f9f9f9;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .list-item:active { background: #f0f0f0; }
+
+        .list-item.parent::after { content: '›'; color: #ccc; font-size: 1.2rem; }
+
+        /* コンテンツエリア（モック用） */
+        .content-placeholder {
+            padding: 20px;
+            color: #ccc;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="phone-mock">
+    <div class="search-bar">
+        <div class="row1">
+            <button class="pill-btn" id="area-btn">📍 エリアを選択 ▾</button>
+            <button class="pill-btn" id="cat-btn">🏷 カテゴリ ▾</button>
+        </div>
+        <div class="search-input-row">
+            <input type="text" placeholder="店舗名・特徴で検索..." id="keyword-display" />
+            <span>🔍</span>
+        </div>
+    </div>
+
+    <div class="content-placeholder">
+        <p>ここに検索結果が表示されます</p>
+    </div>
+
+    <div class="overlay" id="overlay">
+        <div class="sheet">
+            <div class="sheet-header">
+                <b id="sheet-title">選択してください</b>
+                <span id="close-btn" style="cursor:pointer; color:var(--text-sub)">✕</span>
+            </div>
+            <div class="sheet-body" id="sheet-body">
+                </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // データ構造
+    const areaTree = [
+        { label: '全国', value: 'all' },
+        { label: '関東', children: [
+            { label: '関東すべて', value: 'kanto' },
+            { label: '東京', children: [
+                { label: '東京すべて', value: 'tokyo' },
+                { label: '新宿区', value: 'shinjuku' },
+                { label: '渋谷区', value: 'shibuya' },
+                { label: '江戸川区', value: 'edogawa' }
+            ]}
+        ]}
+    ];
+
+    const categories = [
+        { label: 'すべて', value: '' },
+        { label: 'カフェ', value: 'cafe' },
+        { label: 'コンビニ', value: 'convenience' },
+        { label: 'スーパー', value: 'supermarket' },
+        { label: '居酒屋', value: 'izakaya' },
+        { label: 'ヨガスタジオ', value: 'yoga' }
+    ];
+
+    const overlay = document.getElementById('overlay');
+    const sheetBody = document.getElementById('sheet-body');
+    const sheetTitle = document.getElementById('sheet-title');
+    const areaBtn = document.getElementById('area-btn');
+    const catBtn = document.getElementById('cat-btn');
+
+    let currentMode = ''; // 'area' or 'category'
+
+    // 表示制御
+    function openSheet(mode, data, title) {
+        currentMode = mode;
+        sheetTitle.textContent = title;
+        renderList(data);
+        overlay.classList.add('show');
+    }
+
+    function closeSheet() {
+        overlay.classList.remove('show');
+    }
+
+    function renderList(items) {
+        sheetBody.innerHTML = '';
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.className = 'list-item' + (item.children ? ' parent' : '');
+            div.textContent = item.label;
+            div.onclick = () => {
+                if (item.children) {
+                    renderList(item.children); // ドリルダウン
+                } else {
+                    selectItem(item);
+                }
+            };
+            sheetBody.appendChild(div);
+        });
+    }
+
+    function selectItem(item) {
+        if (currentMode === 'area') {
+            areaBtn.textContent = '📍 ' + item.label + ' ▾';
+            areaBtn.classList.add('active');
+        } else {
+            catBtn.textContent = '🏷 ' + item.label + ' ▾';
+            catBtn.classList.add('active');
+        }
+        closeSheet();
+    }
+
+    // イベント
+    areaBtn.onclick = () => openSheet('area', areaTree, 'エリアを選択');
+    catBtn.onclick = () => openSheet('category', categories, 'カテゴリを選択');
+    document.getElementById('close-btn').onclick = closeSheet;
+    overlay.onclick = (e) => { if(e.target === overlay) closeSheet(); };
+
+</script>
+</body>
+</html>
