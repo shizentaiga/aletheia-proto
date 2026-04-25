@@ -54,7 +54,7 @@ interface CafeListProps {
 }
 
 export const CafeList = ({ 
-  cafes, totalCount, offset = 0, keyword = '', region = '', category = '', detectedRegion = '' 
+  cafes, totalCount, offset = 0, keyword = '', region = '', category = '' , detectedRegion = '' 
 }: CafeListProps) => {
   const nextOffset = offset + cafes.length;
   const hasMore = nextOffset < totalCount;
@@ -141,9 +141,25 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
         .arrow { font-size: 0.6rem; color: #ccc; transition: transform 0.2s; }
         .arrow.open { transform: rotate(90deg); }
 
+        /* 🌟 修正：解除ボタンとして機能させるためのスタイル更新 */
         .filter-chip { 
-          display: inline-flex; align-items: center; background: #e8f0fe; color: #4285F4;
-          padding: 4px 12px; borderRadius: 999px; fontSize: 0.75rem; fontWeight: bold;
+          display: inline-flex; 
+          align-items: center; 
+          background: #e8f0fe; 
+          color: #4285F4;
+          padding: 4px 12px; 
+          border-radius: 999px; 
+          font-size: 0.75rem; 
+          font-weight: bold;
+          cursor: pointer;
+          transition: background 0.2s;
+          user-select: none;
+        }
+        .filter-chip:hover {
+          background: #d2e3fc;
+        }
+        .filter-chip:active {
+          transform: scale(0.96);
         }
       `}</style>
 
@@ -157,7 +173,6 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
         <div style={STYLES.LAYOUT.MAIN}>
           <HeaderArea user={user} />
           
-          {/* 💡 修正：SearchSection に region と category を渡す */}
           <SearchSection region={region} category={category} />
 
           <main style={STYLES.LAYOUT.LIST} id="cafe-list-container">
@@ -186,7 +201,6 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
 
       <SearchLogic />
 
-      {/* 🌟 修正：HTMX遷移にも対応した「HTML属性からの自動同期」スクリプト */}
       <script dangerouslySetInnerHTML={{ __html: `
         (function() {
           const sync = () => {
@@ -195,14 +209,12 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
             }
           };
 
-          // 初回ロード時
           if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', sync);
           } else {
             sync();
           }
 
-          // HTMXによる遷移・更新完了時
           document.addEventListener('htmx:afterSettle', sync);
         })();
       `}} />

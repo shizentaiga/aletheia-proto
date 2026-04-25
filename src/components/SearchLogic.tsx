@@ -106,7 +106,6 @@ export const SearchLogic = () => (
       if (hiddenInput) hiddenInput.value = val;
       
       if (labelElement) {
-        // 表示時は PREF_MAP で変換を試みる（値がTokyoなら東京都にする）
         const displayLabel = (mode === 'region' && PREF_MAP[val]) ? PREF_MAP[val] : label;
         labelElement.innerText = isReset ? UI_CONST.RESET_LABEL : displayLabel;
       }
@@ -121,6 +120,14 @@ export const SearchLogic = () => (
       if (window.htmx) {
         window.htmx.trigger(form, 'submit');
       }
+    };
+
+    /**
+     * 🌟 新設：フィルター解除ロジック
+     */
+    window.removeFilter = function(mode) {
+      // 値を空にして確定ロジックを呼ぶことで、UIリセットと再検索を同時に行う
+      window.finalizeSelection(mode, '', UI_CONST.RESET_LABEL);
     };
 
     /**
@@ -143,7 +150,6 @@ export const SearchLogic = () => (
           if (!val || val === 'unknown') {
             label.innerText = UI_CONST.RESET_LABEL;
           } else {
-            // 🌟 エリアの場合は PREF_MAP を使用して日本語に変換
             const displayName = (mode === 'region' && PREF_MAP[val]) ? PREF_MAP[val] : val;
             label.innerText = displayName;
           }
@@ -165,15 +171,17 @@ export const SearchLogic = () => (
 
       let html = '';
       
-      // チップの表示名も PREF_MAP を通して日本語化
+      // 🌟 地域チップに解除イベントと✕マークを追加
       if (rVal && rVal !== 'unknown' && rVal !== '') {
         const rLabel = PREF_MAP[rVal] || rVal;
-        html += '<span class="filter-chip">📍 ' + rLabel + '</span>';
+        html += '<span class="filter-chip" onclick="removeFilter(\\'region\\')">' + 
+                '📍 ' + rLabel + '<span style="margin-left:6px; opacity:0.5;">✕</span></span>';
       }
       
+      // 🌟 カテゴリチップに解除イベントと✕マークを追加
       if (cVal && cVal !== 'unknown' && cVal !== '') {
-        // カテゴリは MASTER_DATA からラベルを引くか、そのまま表示
-        html += '<span class="filter-chip" style="margin-left:4px;">✨ ' + cVal + '</span>';
+        html += '<span class="filter-chip" style="margin-left:4px;" onclick="removeFilter(\\'category\\')">' + 
+                '✨ ' + cVal + '<span style="margin-left:6px; opacity:0.5;">✕</span></span>';
       }
       chipArea.innerHTML = html;
     }
