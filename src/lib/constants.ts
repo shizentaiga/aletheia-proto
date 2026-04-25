@@ -5,10 +5,6 @@
 
 /**
  * ISO 3166-2:JP に準拠した都道府県マッピング
- * * Cloudflareの c.req.raw.cf.region から渡される値（"13" や "Tokyo"）を、
- * データベースの表記（"東京都"）に変換するために使用します。
- * * @key ISOコード(文字列) または ローマ字表記
- * @value 日本語都道府県名（"都道府縣" 含む）
  */
 export const JP_PREFECTURES: Record<string, string> = {
   // 北海道・東北
@@ -72,11 +68,24 @@ export const JP_PREFECTURES: Record<string, string> = {
 } as const;
 
 /**
+ * 🌟 追加: 地方（Region）から都道府県リストへのマッピング
+ * SearchLogic.tsx の MASTER_DATA.region.options の value と対応
+ */
+export const JP_REGIONS: Record<string, string[]> = {
+  hokkaido: ["北海道"],
+  tohoku: ["青森県", "岩手県", "宮城県", "秋田県", "山形県", "福島県"],
+  kanto: ["茨城県", "栃木県", "群馬県", "埼玉県", "千葉県", "東京都", "神奈川県"],
+  chubu: ["新潟県", "富山県", "石川県", "福井県", "山梨県", "長野県", "岐阜県", "静岡県", "愛知県"],
+  kinki: ["三重県", "滋賀県", "京都府", "大阪府", "兵庫県", "奈良県", "和歌山県"],
+  chugoku: ["鳥取県", "島根県", "岡山県", "広島県", "山口県"],
+  shikoku: ["徳島県", "香川県", "愛媛県", "高知県"],
+  kyushu: ["福岡県", "佐賀県", "長崎県", "熊本県", "大分県", "宮崎県", "鹿児島県", "沖縄県"],
+} as const;
+
+/**
  * CloudflareのRegionプロパティから日本語都道府県名を解決するユーティリティ
- * 判定不能な場合は、デフォルト値として空文字または特定の都道府県を返します。
  */
 export const getPrefectureName = (region: string | undefined): string => {
   if (!region) return "";
-  // 大文字小文字の揺れを許容しつつマッピングを確認
   return JP_PREFECTURES[region] || "";
 };

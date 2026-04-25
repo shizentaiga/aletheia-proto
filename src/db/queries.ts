@@ -16,7 +16,7 @@
  * =============================================================================
  */
 
-import { getPrefectureName } from '../lib/constants'; // 👈 追加
+import { getPrefectureName, JP_REGIONS } from '../lib/constants';
 
 // -----------------------------------------------------------------------------
 // 1. 定数管理 (Config)
@@ -56,6 +56,7 @@ export interface FetchCafesResponse {
 
 /**
  * 3-1. カフェ一覧・検索取得 (fetchCafesByContext)
+ * 地方(Region)指定、都道府県・市区町村、キーワード検索を統合して処理します。
  */
 export async function fetchCafesByContext(
   db: D1Database,
@@ -70,23 +71,34 @@ export async function fetchCafesByContext(
   let whereClauses: string[] = ["deleted_at IS NULL"];
   let params: any[] = [];
 
-  // 1. 地域フィルタの正規化 (追加・修正)
+  // 1. 地域フィルタの正規化
   if (region) {
-    // Cloudflareの生データ(13, Tokyo等)を「東京都」形式に変換
-    const mappedRegion = getPrefectureName(region);
-    
-    if (mappedRegion) {
-      // 変換成功：マッピング後の日本語名で検索
-      whereClauses.push("(prefecture = ? OR city = ?)");
-      params.push(mappedRegion, mappedRegion);
+    // 🌟 A. 地方識別子 (kanto, tohoku 等) の判定
+    const regionPrefectures = JP_REGIONS[region];
+
+    if (regionPrefectures) {
+      // 地方検索の場合：IN 句を用いて属する全県を対象にする
+      const placeholders = regionPrefectures.map(() => "?").join(", ");
+      whereClauses.push(`prefecture IN (${placeholders})`);
+      params.push(...regionPrefectures);
     } else {
-      // 変換不可（マッピング外）：元の値をそのまま利用（後方互換性）
-      whereClauses.push("(prefecture = ? OR city = ?)");
-      params.push(region, region);
+      // 🌟 B. 従来の都道府県・市区町村検索
+      // Cloudflareの生データ(13, Tokyo等)を「東京都」形式に変換を試みる
+      const mappedPref = getPrefectureName(region);
+      
+      if (mappedPref) {
+        // 変換成功：マッピング後の日本語名で検索
+        whereClauses.push("(prefecture = ? OR city = ?)");
+        params.push(mappedPref, mappedPref);
+      } else {
+        // 変換不可：直接入力された名称（市区町村名や「東京都」など）として処理
+        whereClauses.push("(prefecture = ? OR city = ?)");
+        params.push(region, region);
+      }
     }
   }
 
-  // 2. キーワード検索 (変更なし)
+  // 2. キーワード検索
   if (keyword) {
     whereClauses.push("(title LIKE ? OR address LIKE ?)");
     params.push(`%${keyword}%`, `%${keyword}%`);
@@ -94,7 +106,7 @@ export async function fetchCafesByContext(
 
   const whereSql = `WHERE ${whereClauses.join(" AND ")}`;
 
-  // --- (クエリ実行ロジックは変更なし) ---
+  // --- クエリ実行 ---
   const dataQuery = `
     SELECT service_id, title, address, prefecture, city
     FROM services
