@@ -22,6 +22,7 @@ import { test04 } from './test04_address'
 import { test05 } from './test05_cdn'
 import { test06 } from './test06_next100'
 import { test07 } from './test07_hpg'
+import { test81 } from './test81_cr'
 
 type Bindings = {
   ALETHEIA_PROTO_DB: D1Database
@@ -42,4 +43,5 @@ sandboxApp.route('/test04', test04)
 sandboxApp.route('/test05', test05)
 sandboxApp.route('/test06', test06)
 sandboxApp.route('/test07', test07)
+sandboxApp.route('/test81', test81)
 
