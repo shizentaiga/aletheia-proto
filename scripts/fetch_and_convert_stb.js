@@ -27,13 +27,10 @@
  * =============================================================================
  */
 
-// ⭐️実行時間は、3秒 * 47都道府県に、さらに、ループ回数分が考慮されるので5分くらいかかるかも。
-
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// ES Modulesで __dirname を再現
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -45,136 +42,127 @@ const CONFIG = {
     OWNER_ID: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
     OUTPUT_SQL: path.join(__dirname, '../src/db/seed/chains/starbucks.sql'),
     LOG_RAW: path.join(__dirname, 'logs/st_all_raw.json'),
-    LOG_SQL_BACKUP: path.join(__dirname, 'logs/starbucks_gen.sql'),
-    WAIT_MS: 3000, // サーバー負荷軽減のため3秒待機
+    WAIT_LONG: 5000,  // 都道府県ごとの待機 (5秒)
+    WAIT_SHORT: 2000, // ページごとの待機 (2秒)
+    CONCURRENCY: 2    // 同時にリクエストを投げる都道府県数 (極めて低速・安全に設定)
 };
 
-/**
- * ユーティリティ：スリープ関数
- */
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * スターバックスAPIからデータを取得する関数
+ * 住所のクレンジング
+ * スペースを完全に消さず、正規化するに留める（検索ヒット率向上のため）
  */
+function normalizeAddress(addr) {
+    if (!addr) return '';
+    return addr.replace(/　/g, ' ').trim();
+}
+
+/**
+ * SQL生成
+ * D1でエラーが出るため、BEGIN/COMMITは含めない
+ */
+function convertToSql(hits) {
+    return hits.map(hit => {
+        const f = hit.fields;
+        const storeId = f.store_id;
+        const serviceId = `STB_${storeId}`;
+        const extPlaceId = `STB_OFFICIAL_${storeId}`;
+        
+        const cleanAddress = normalizeAddress(f.address_5);
+        const [lat, lng] = f.location ? f.location.split(',') : ['NULL', 'NULL'];
+        const hasWifi = f.public_wireless_service_flg === "1" ? 1 : 0;
+        const escapedTitle = `スターバックス コーヒー ${f.name}`.replace(/'/g, "''");
+
+        return [
+            `INSERT OR REPLACE INTO services (service_id, brand_id, owner_id, plan_id, ext_place_id, ext_source, title, address, lat, lng, verification_level) VALUES ('${serviceId}', '${CONFIG.DB_ID}', '${CONFIG.OWNER_ID}', 'free', '${extPlaceId}', 'starbucks_official', '${escapedTitle}', '${cleanAddress}', ${lat}, ${lng}, 1);`,
+            `INSERT OR REPLACE INTO service_category_rel (service_id, category_id) VALUES ('${serviceId}', 'cat_cafe');`,
+            `INSERT OR REPLACE INTO service_cafe_details (service_id, has_wifi) VALUES ('${serviceId}', ${hasWifi});`
+        ].join('\n');
+    }).join('\n');
+}
+
 async function fetchStarbucksData(prefCode, start = 0) {
     const baseUrl = 'https://hn8madehag.execute-api.ap-northeast-1.amazonaws.com/prd-2019-08-21/storesearch';
+    
+    // 🌟 ポイント： '01' を 1 (数値) に変換します
+    const numericPrefCode = parseInt(prefCode, 10);
+
     const params = new URLSearchParams({
         size: '100',
         'q.parser': 'structured',
-        q: `(and ver:10000 record_type:1 pref_code:${prefCode})`,
-        fq: "(and data_type:'prd')",
-        sort: 'zip_code asc,store_id asc',
+        // 🌟 数値としてクエリを組み立てます
+        q: `(and record_type:1 pref_code:${numericPrefCode})`,
+        sort: 'store_id asc',
         start: start.toString()
     });
 
-    const url = `${baseUrl}?${params.toString()}`;
-
-    console.log(`📡 Requesting: [Pref:${prefCode}] Start:${start}...`);
-
-    const response = await fetch(url, {
-        headers: {
-            'origin': 'https://store.starbucks.co.jp',
-            'referer': 'https://store.starbucks.co.jp/',
-            'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36'
-        }
-    });
-
-    if (!response.ok) {
-        throw new Error(`HTTP Error: ${response.status} at Pref:${prefCode}`);
-    }
-
-    return await response.json();
-}
-
-/**
- * JSONデータをSQLに変換
- */
-function convertToSql(hits) {
-    let sqlLines = [];
-
-    hits.forEach(hit => {
-        const f = hit.fields;
-        const storeId = f.store_id;
-        const extPlaceId = `STB_OFFICIAL_${storeId}`;
-        const serviceId = `STB_${storeId}`;
-        
-        // 住所クレンジング
-        const cleanAddress = f.address_5.replace(/\s+/g, '');
-        
-        // 座標抽出
-        const [lat, lng] = f.location ? f.location.split(',') : [null, null];
-        
-        // Wi-Fi
-        const hasWifi = f.public_wireless_service_flg === "1" ? 1 : 0;
-
-        // SQL生成
-        sqlLines.push(`INSERT OR REPLACE INTO services (service_id, brand_id, owner_id, plan_id, ext_place_id, ext_source, title, address, lat, lng, verification_level) VALUES ('${serviceId}', '${CONFIG.DB_ID}', '${CONFIG.OWNER_ID}', 'free', '${extPlaceId}', 'starbucks_official', 'スターバックス コーヒー ${f.name.replace(/'/g, "''")}', '${cleanAddress}', ${lat}, ${lng}, 1);`);
-        sqlLines.push(`INSERT OR REPLACE INTO service_category_rel (service_id, category_id) VALUES ('${serviceId}', 'cat_cafe');`);
-        sqlLines.push(`INSERT OR REPLACE INTO service_cafe_details (service_id, has_wifi) VALUES ('${serviceId}', ${hasWifi});`);
-    });
-
-    return sqlLines.join('\n');
-}
-
-/**
- * メイン処理
- */
-async function main() {
     try {
-        if (!fs.existsSync(path.dirname(CONFIG.LOG_RAW))) {
-            fs.mkdirSync(path.dirname(CONFIG.LOG_RAW), { recursive: true });
-        }
+        const response = await fetch(`${baseUrl}?${params.toString()}`, {
+            headers: {
+                'origin': 'https://store.starbucks.co.jp',
+                'referer': 'https://store.starbucks.co.jp/',
+                'user-agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0'
+            }
+        });
 
-        // 01(北海道)から47(沖縄)までのリストを作成
-        const prefList = Array.from({ length: 47 }, (_, i) => (i + 1).toString().padStart(2, '0'));
-        
-        let allHits = [];
-        let totalSql = "-- ALETHEIA Starbucks Nationwide Generated Seeds\n\n";
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return await response.json();
+    } catch (e) {
+        console.error(`  ⚠️  Error fetching Pref:${prefCode} (as ${numericPrefCode}): ${e.message}`);
+        return null;
+    }
+}
 
-        console.log("🚀 Starting Nationwide Starbucks Data Acquisition...");
-        console.log(`⏳ Estimated time: ~${Math.round((prefList.length * 1.2 * CONFIG.WAIT_MS) / 1000 / 60)} minutes\n`);
+async function main() {
+    console.log("🚀 Starting Safe Starbucks Data Acquisition...");
+    const prefList = Array.from({ length: 47 }, (_, i) => (i + 1).toString().padStart(2, '0'));
+    let allHits = [];
+    let totalSql = "-- ALETHEIA Starbucks Nationwide Generated Seeds\n\n";
 
-        for (const pref of prefList) {
+    // チャンクに分けて実行 (2都道府県ずつ)
+    for (let i = 0; i < prefList.length; i += CONFIG.CONCURRENCY) {
+        const chunk = prefList.slice(i, i + CONFIG.CONCURRENCY);
+        console.log(`📦 Processing: ${chunk.join(', ')}...`);
+
+        const results = await Promise.all(chunk.map(async (pref) => {
             let start = 0;
+            let hitsInPref = [];
             let hasMore = true;
 
             while (hasMore) {
                 const data = await fetchStarbucksData(pref, start);
-                const hits = data.hits.hit;
-                
-                if (hits && hits.length > 0) {
-                    allHits.push(...hits);
-                    totalSql += convertToSql(hits) + "\n";
-                }
+                if (!data || !data.hits) break;
 
-                const found = data.hits.found;
+                const hits = data.hits.hit || [];
+                hitsInPref.push(...hits);
+
+                console.log(`  📍 Pref:${pref} - Found: ${hits.length} (Total: ${data.hits.found})`);
+
                 start += 100;
-
-                if (start >= found) {
+                if (start >= data.hits.found) {
                     hasMore = false;
-                    // 次の都道府県に移る前にも待機を入れる
-                    await sleep(CONFIG.WAIT_MS);
                 } else {
-                    // 同一県内のページネーション待機
-                    console.log(`⏲️  Waiting ${CONFIG.WAIT_MS}ms for next page of Pref:${pref}...`);
-                    await sleep(CONFIG.WAIT_MS);
+                    await sleep(CONFIG.WAIT_SHORT); // ページ内待機
                 }
             }
-        }
+            return hitsInPref;
+        }));
 
-        fs.writeFileSync(CONFIG.OUTPUT_SQL, totalSql);
-        fs.writeFileSync(CONFIG.LOG_SQL_BACKUP, totalSql);
-        fs.writeFileSync(CONFIG.LOG_RAW, JSON.stringify(allHits, null, 2));
+        const flattened = results.flat().filter(Boolean);
+        allHits.push(...flattened);
+        totalSql += convertToSql(flattened) + "\n";
 
-        console.log(`\n✨ Done!`);
-        console.log(`- Total Records: ${allHits.length}`);
-        console.log(`- Data Source: Official API (pref_code 01-47)`);
-        console.log(`- Result Saved: ${CONFIG.OUTPUT_SQL}`);
-
-    } catch (error) {
-        console.error(`\n❌ Critical Error: ${error.message}`);
+        console.log(`⏳ Waiting ${CONFIG.WAIT_LONG}ms for next chunk...`);
+        await sleep(CONFIG.WAIT_LONG); // チャンク間待機
     }
+
+    // 保存処理
+    if (!fs.existsSync(path.dirname(CONFIG.LOG_RAW))) fs.mkdirSync(path.dirname(CONFIG.LOG_RAW), { recursive: true });
+    fs.writeFileSync(CONFIG.OUTPUT_SQL, totalSql);
+    fs.writeFileSync(CONFIG.LOG_RAW, JSON.stringify(allHits, null, 2));
+
+    console.log(`\n✨ Done! Total Records: ${allHits.length}`);
 }
 
 main();
