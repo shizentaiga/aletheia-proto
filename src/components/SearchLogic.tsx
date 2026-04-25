@@ -5,7 +5,7 @@
  */
 
 /** @jsxImportSource hono/jsx */
-import { SEARCH_MASTER, UI_TEXT } from '../lib/constants'
+import { SEARCH_MASTER, UI_TEXT, PREFECTURE_MASTER } from '../lib/constants'
 
 export const SearchLogic = () => (
   <script dangerouslySetInnerHTML={{ __html: `
@@ -14,6 +14,7 @@ export const SearchLogic = () => (
      */
     const MASTER_DATA = ${JSON.stringify(SEARCH_MASTER)};
     const UI_CONST = ${JSON.stringify(UI_TEXT)};
+    const PREF_MAP = ${JSON.stringify(PREFECTURE_MASTER)};
 
     /**
      * 2. ドリルダウン制御
@@ -103,11 +104,13 @@ export const SearchLogic = () => (
       const form = document.getElementById('search-form');
 
       if (hiddenInput) hiddenInput.value = val;
+      
       if (labelElement) {
-        labelElement.innerText = isReset ? UI_CONST.RESET_LABEL : label;
+        // 表示時は PREF_MAP で変換を試みる（値がTokyoなら東京都にする）
+        const displayLabel = (mode === 'region' && PREF_MAP[val]) ? PREF_MAP[val] : label;
+        labelElement.innerText = isReset ? UI_CONST.RESET_LABEL : displayLabel;
       }
 
-      // 🌟 修正：HTMLの属性側も更新しておく（整合性維持）
       if (form) {
         form.setAttribute('data-current-' + mode, val);
       }
@@ -121,13 +124,12 @@ export const SearchLogic = () => (
     };
 
     /**
-     * 4. 🌟 新しい初期化・同期ロジック (HTML属性駆動)
+     * 4. 初期化・同期ロジック (HTML属性駆動 + 日本語変換)
      */
     window.syncUIFromData = function() {
       const form = document.getElementById('search-form');
       if (!form) return;
 
-      // 同期したい項目のリスト
       const modes = ['region', 'category'];
 
       modes.forEach(mode => {
@@ -135,21 +137,19 @@ export const SearchLogic = () => (
         const input = document.getElementById('hidden-' + mode);
         const label = document.getElementById('current-' + mode + '-text');
 
-        // inputの値を同期
         if (input) input.value = val;
 
-        // ラベルのテキストを同期
         if (label) {
-          // 値が空、または 'unknown' の場合は「指定なし」を表示
           if (!val || val === 'unknown') {
             label.innerText = UI_CONST.RESET_LABEL;
           } else {
-            label.innerText = val;
+            // 🌟 エリアの場合は PREF_MAP を使用して日本語に変換
+            const displayName = (mode === 'region' && PREF_MAP[val]) ? PREF_MAP[val] : val;
+            label.innerText = displayName;
           }
         }
       });
 
-      // 状態をチップに反映
       updateFilterChips();
     };
 
@@ -158,21 +158,22 @@ export const SearchLogic = () => (
       if (!chipArea) return;
 
       const rInput = document.getElementById('hidden-region');
-      const rLabelEl = document.getElementById('current-region-text');
-      const cInput = document.getElementById('hidden-category');
-      const cLabelEl = document.getElementById('current-category-text');
-
       const rVal = rInput ? rInput.value : '';
-      const rLabel = rLabelEl ? rLabelEl.innerText : '';
+      
+      const cInput = document.getElementById('hidden-category');
       const cVal = cInput ? cInput.value : '';
-      const cLabel = cLabelEl ? cLabelEl.innerText : '';
 
       let html = '';
-      if (rVal && rVal !== 'unknown' && rLabel !== UI_CONST.RESET_LABEL) {
+      
+      // チップの表示名も PREF_MAP を通して日本語化
+      if (rVal && rVal !== 'unknown' && rVal !== '') {
+        const rLabel = PREF_MAP[rVal] || rVal;
         html += '<span class="filter-chip">📍 ' + rLabel + '</span>';
       }
-      if (cVal && cVal !== 'unknown' && cLabel !== UI_CONST.RESET_LABEL) {
-        html += '<span class="filter-chip" style="margin-left:4px;">✨ ' + cLabel + '</span>';
+      
+      if (cVal && cVal !== 'unknown' && cVal !== '') {
+        // カテゴリは MASTER_DATA からラベルを引くか、そのまま表示
+        html += '<span class="filter-chip" style="margin-left:4px;">✨ ' + cVal + '</span>';
       }
       chipArea.innerHTML = html;
     }
