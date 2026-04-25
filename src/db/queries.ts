@@ -25,7 +25,7 @@ import { getPrefectureName, JP_REGIONS } from '../lib/constants';
 /**
  * 一覧表示における最大取得件数 (1ページあたりの件数)
  */
-export const DISPLAY_LIMIT = 100;
+export const DISPLAY_LIMIT = 30;
 
 // -----------------------------------------------------------------------------
 // 2. 型定義 (Interfaces)
