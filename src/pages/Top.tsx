@@ -10,7 +10,6 @@
 /** @jsxImportSource hono/jsx */
 import { STYLES, SPACE } from '../styles/theme'
 import type { Cafe } from '../db/queries'
-import { getPrefectureName } from '../lib/constants' // 🌟 追加
 
 // サブ・コンポーネント
 import { DebugMonitor } from '../components/DebugMonitor'
@@ -18,7 +17,7 @@ import { HeaderArea } from '../components/HeaderArea'
 import { SearchSection } from '../components/SearchSection'
 import { CafeCard } from '../components/CafeCard'
 
-// 💡 新規分離したコンポーネントのインポート
+// 💡 コンポーネントのインポート
 import { SearchHeader } from '../components/SearchHeader'
 import { SearchLogic } from '../components/SearchLogic'
 
@@ -51,7 +50,7 @@ interface CafeListProps {
   keyword?: string;
   region?: string;
   category?: string;
-  detectedRegion?: string; // 🌟 現在地のヒント
+  detectedRegion?: string;
 }
 
 export const CafeList = ({ 
@@ -60,13 +59,12 @@ export const CafeList = ({
   const nextOffset = offset + cafes.length;
   const hasMore = nextOffset < totalCount;
   
-  // URLエンコードの共通化
   const params = new URLSearchParams({
     offset: nextOffset.toString(),
     keyword: keyword || '',
     region: region || '',
     category: category || '',
-    detectedRegion: detectedRegion || '' // 追加読み込み時もソート順を維持するために継承
+    detectedRegion: detectedRegion || ''
   }).toString();
 
   return (
@@ -112,12 +110,8 @@ interface TopProps {
 export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword = '', region = '', category = '' }: TopProps) => {
   const isDev = env?.NODE_ENV === 'development';
 
-  // 🌟 Cloudflareからの英語名(Tokyo等)を日本語名(東京都)に変換
-  const jpnRegion = getPrefectureName(location?.region);
-  
   return (
     <div style={STYLES.LAYOUT.WRAPPER}>
-      {/* 💡 CSS定義のみを保持 */}
       <style>{`
         .drilldown-item { 
           padding: ${SPACE.MD}; 
@@ -162,7 +156,9 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
 
         <div style={STYLES.LAYOUT.MAIN}>
           <HeaderArea user={user} />
-          <SearchSection />
+          
+          {/* 💡 修正：SearchSection に region と category を渡す */}
+          <SearchSection region={region} category={category} />
 
           <main style={STYLES.LAYOUT.LIST} id="cafe-list-container">
             <div id="search-results-area">
@@ -190,13 +186,25 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
 
       <SearchLogic />
 
-      {/* 🌟 修正：日本語化された都道府県名(jpnRegion)を初期化関数に渡す */}
+      {/* 🌟 修正：HTMX遷移にも対応した「HTML属性からの自動同期」スクリプト */}
       <script dangerouslySetInnerHTML={{ __html: `
-        document.addEventListener('DOMContentLoaded', () => {
-          if (window.initSearchContext) {
-            window.initSearchContext('${jpnRegion}');
+        (function() {
+          const sync = () => {
+            if (window.syncUIFromData) {
+              window.syncUIFromData();
+            }
+          };
+
+          // 初回ロード時
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', sync);
+          } else {
+            sync();
           }
-        });
+
+          // HTMXによる遷移・更新完了時
+          document.addEventListener('htmx:afterSettle', sync);
+        })();
       `}} />
     </div>
   );

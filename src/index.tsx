@@ -47,13 +47,14 @@ app.route('/_sandbox', sandboxApp)
 
 /**
  * [GET] / : 初期表示（フルレンダリング）
+ * ロゴクリック時や初回アクセス時に呼ばれる
  */
 app.get('/', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
 
-  // Cloudflareから位置情報を取得
-  const cf = c.req.raw.cf as any 
+  // Cloudflareから位置情報を取得（型安全のため安全にキャスト）
+  const cf = (c.req.raw as any).cf
   const locationInfo = {
     region: cf?.region || 'unknown',
     city: cf?.city || 'unknown',
@@ -65,24 +66,26 @@ app.get('/', async (c) => {
   const category = c.req.query('category') || ''
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
-  // 🌟 修正ポイント：
-  // ユーザーが明示的に地域を指定 (region query) していない場合、
-  // Cloudflare の位置情報 (locationInfo.region) を絞り込み条件として使用する。
+  // 【ロジックの肝】
+  // 1. URLパラメータに region があればそれを使用
+  // 2. なければ Cloudflare の位置情報を使用
   const queryRegion = c.req.query('region')
   const effectiveRegion = queryRegion || (locationInfo.region !== 'unknown' ? locationInfo.region : '')
 
   // ユーザー情報とカフェ一覧を並列で取得
+  // effectiveRegion を渡すことで、初回から絞り込まれた結果を返す
   const [user, cafeResult] = await Promise.all([
     getCurrentUser(db, sessionUserId),
     fetchCafesByContext(db, { 
       keyword, 
-      region: effectiveRegion, // 🌟 位置情報を絞り込み用 region として渡す
+      region: effectiveRegion, 
       offset, 
       detectedRegion: locationInfo.region 
     }) 
   ])
 
   // ページ全体を表示
+  // region={effectiveRegion} を渡すことで、Top.tsx 内の JS 初期化関数にこの値が引き継がれる
   return c.render(
     <Top 
       user={user} 
@@ -91,7 +94,7 @@ app.get('/', async (c) => {
       totalCount={cafeResult.totalCount}
       location={locationInfo}
       keyword={keyword}
-      region={effectiveRegion} // 🌟 決定された地域を渡す（UI側の初期値になる）
+      region={effectiveRegion} 
       category={category}
     />, 
     { title: 'メインポータル' }
@@ -122,7 +125,7 @@ app.get('/search', async (c) => {
     detectedRegion 
   })
 
-  // HTMX以外での直接アクセスの場合は Top をフルレンダリング
+  // HTMX以外での直接アクセスの場合は Top をフルレンダリング（リロード対策）
   if (!isHtmx) {
     const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
     const user = await getCurrentUser(db, sessionUserId)
@@ -135,7 +138,7 @@ app.get('/search', async (c) => {
     )
   }
 
-  // HTMXレスポンス
+  // HTMXレスポンス（検索結果エリアのみ更新）
   if (offset === 0) {
     return c.html(
       <>
@@ -156,6 +159,7 @@ app.get('/search', async (c) => {
     )
   }
 
+  // 「さらに読み込む」用
   return c.html(
     <CafeList 
       cafes={cafes} 

@@ -25,13 +25,12 @@ const SEARCH_DESIGN = {
     marginBottom: SPACE.XS,
     padding: `0 ${SPACE.XS}`
   },
-  // 🌟 修正：ドリルダウンコンテナを絶対配置（オーバーレイ）化
   DRILLDOWN_WRAPPER: {
-    position: 'absolute' as const, // 💡 1. 親を基準に浮かせる
-    top: '100%',                  // 💡 2. トリガーの真下に配置
+    position: 'absolute' as const,
+    top: '100%',
     left: 0,
     right: 0,
-    zIndex: 100,                  // 💡 3. theme.ts の EFFECTS.Z_INDEX.OVERLAY に相当
+    zIndex: 100,
     width: '100%',
     background: '#fff',
     borderRadius: '8px',
@@ -39,7 +38,7 @@ const SEARCH_DESIGN = {
     display: 'none',
     border: '1px solid #eee',
     marginTop: '4px',
-    boxShadow: '0 10px 25px rgba(0,0,0,0.1)' // 💡 4. 浮遊感を出すために影を強化
+    boxShadow: '0 10px 25px rgba(0,0,0,0.1)'
   }
 } as const;
 
@@ -51,7 +50,13 @@ const UI_COPY = {
   DEFAULT_VAL: '指定なし'
 } as const;
 
-export const SearchSection = () => {
+// 💡 Props インターフェースの定義
+interface SearchSectionProps {
+  region?: string;
+  category?: string;
+}
+
+export const SearchSection = ({ region = '', category = '' }: SearchSectionProps) => {
   const COMMON_HX_ATTRS = {
     'hx-get': "/search",
     'hx-target': "#search-results-area",
@@ -62,10 +67,14 @@ export const SearchSection = () => {
   return (
     <div style={{ ...STYLES.LAYOUT.STICKY_BAR, flexDirection: 'column' }}>
       
+      {/* 💡 修正：form タグに id と data 属性を追加 */}
       <form 
+        id="search-form"
         style={STYLES.LAYOUT.SEARCH_BOX}
         {...COMMON_HX_ATTRS}
         hx-trigger="submit"
+        data-current-region={region}
+        data-current-category={category}
       >
         {/* 1段目：トリガーエリア */}
         <div style={{ 
@@ -76,7 +85,6 @@ export const SearchSection = () => {
           marginBottom: SPACE.XS 
         }}>
           {/* エリア選択ブロック */}
-          {/* 💡 修正：パネルの基準点にするため position: relative を追加 */}
           <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
             <div 
               id="area-trigger"
@@ -86,12 +94,10 @@ export const SearchSection = () => {
               <span style={{ fontSize: '0.7rem', display: 'block', color: '#999' }}>{UI_COPY.LABEL_AREA}</span>
               <span id="current-region-text" style={{ fontWeight: 'bold' }}>{UI_COPY.DEFAULT_VAL}</span>
             </div>
-            {/* 注入用コンテナ（エリア用） */}
             <div id="drilldown-region" style={SEARCH_DESIGN.DRILLDOWN_WRAPPER}></div>
           </div>
 
           {/* 特徴選択ブロック */}
-          {/* 💡 修正：パネルの基準点にするため position: relative を追加 */}
           <div style={{ display: 'flex', flexDirection: 'column', position: 'relative' }}>
             <div 
               id="feat-trigger" 
@@ -101,7 +107,6 @@ export const SearchSection = () => {
               <span style={{ fontSize: '0.7rem', display: 'block', color: '#999' }}>{UI_COPY.LABEL_FEAT}</span>
               <span id="current-category-text" style={{ fontWeight: 'bold' }}>{UI_COPY.DEFAULT_VAL}</span>
             </div>
-            {/* 注入用コンテナ（特徴用） */}
             <div id="drilldown-category" style={SEARCH_DESIGN.DRILLDOWN_WRAPPER}></div>
           </div>
         </div>
@@ -124,8 +129,8 @@ export const SearchSection = () => {
             style={{ ...STYLES.COMPONENTS.INPUT, padding: `${SPACE.SM} 0` }} 
           />
           
-          <input type="hidden" name="region" id="hidden-region" value="" />
-          <input type="hidden" name="category" id="hidden-category" value="" />
+          <input type="hidden" name="region" id="hidden-region" value={region} />
+          <input type="hidden" name="category" id="hidden-category" value={category} />
           <input type="hidden" name="offset" value="0" />
           
           <button 

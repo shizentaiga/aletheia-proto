@@ -10,7 +10,7 @@ import { SEARCH_MASTER, UI_TEXT } from '../lib/constants'
 export const SearchLogic = () => (
   <script dangerouslySetInnerHTML={{ __html: `
     /**
-     * 1. 定数の注入（constants.ts から同期）
+     * 1. 定数の注入
      */
     const MASTER_DATA = ${JSON.stringify(SEARCH_MASTER)};
     const UI_CONST = ${JSON.stringify(UI_TEXT)};
@@ -100,40 +100,56 @@ export const SearchLogic = () => (
       const isReset = (val === '' || label === UI_CONST.ALL_COUNTRY || label === UI_CONST.RESET_LABEL);
       const hiddenInput = document.getElementById('hidden-' + mode);
       const labelElement = document.getElementById('current-' + mode + '-text');
+      const form = document.getElementById('search-form');
 
-      hiddenInput.value = val;
+      if (hiddenInput) hiddenInput.value = val;
+      if (labelElement) {
+        labelElement.innerText = isReset ? UI_CONST.RESET_LABEL : label;
+      }
 
-      if (isReset) {
-        labelElement.innerText = UI_CONST.RESET_LABEL;
-      } else {
-        labelElement.innerText = label;
+      // 🌟 修正：HTMLの属性側も更新しておく（整合性維持）
+      if (form) {
+        form.setAttribute('data-current-' + mode, val);
       }
       
       updateFilterChips();
       closeAllDrilldowns();
       
-      const form = document.querySelector('form');
       if (window.htmx) {
         window.htmx.trigger(form, 'submit');
       }
     };
 
     /**
-     * 4. 初期化ロジック (現在地による自動絞り込みの反映)
+     * 4. 🌟 新しい初期化・同期ロジック (HTML属性駆動)
      */
-    window.initSearchContext = function(detectedPref) {
-      const regionInput = document.getElementById('hidden-region');
-      const regionLabel = document.getElementById('current-region-text');
+    window.syncUIFromData = function() {
+      const form = document.getElementById('search-form');
+      if (!form) return;
 
-      // ユーザーが手動選択していない(空である)場合のみ、現在地をセット
-      if (regionInput && regionInput.value === '') {
-        if (detectedPref) {
-          // 🌟 修正ポイント: ラベルをセット
-          regionLabel.innerText = detectedPref;
-          // 🌟 修正ポイント: hidden inputにも値をセットし、絞り込みを確定させる
-          regionInput.value = detectedPref;
+      // 同期したい項目のリスト
+      const modes = ['region', 'category'];
+
+      modes.forEach(mode => {
+        const val = form.getAttribute('data-current-' + mode) || '';
+        const input = document.getElementById('hidden-' + mode);
+        const label = document.getElementById('current-' + mode + '-text');
+
+        // inputの値を同期
+        if (input) input.value = val;
+
+        // ラベルのテキストを同期
+        if (label) {
+          // 値が空、または 'unknown' の場合は「指定なし」を表示
+          if (!val || val === 'unknown') {
+            label.innerText = UI_CONST.RESET_LABEL;
+          } else {
+            label.innerText = val;
+          }
         }
-      }
+      });
+
+      // 状態をチップに反映
       updateFilterChips();
     };
 
@@ -141,14 +157,23 @@ export const SearchLogic = () => (
       const chipArea = document.getElementById('active-filters');
       if (!chipArea) return;
 
-      const rVal = document.getElementById('hidden-region').value;
-      const rLabel = document.getElementById('current-region-text').innerText;
-      const cVal = document.getElementById('hidden-category').value;
-      const cLabel = document.getElementById('current-category-text').innerText;
+      const rInput = document.getElementById('hidden-region');
+      const rLabelEl = document.getElementById('current-region-text');
+      const cInput = document.getElementById('hidden-category');
+      const cLabelEl = document.getElementById('current-category-text');
+
+      const rVal = rInput ? rInput.value : '';
+      const rLabel = rLabelEl ? rLabelEl.innerText : '';
+      const cVal = cInput ? cInput.value : '';
+      const cLabel = cLabelEl ? cLabelEl.innerText : '';
 
       let html = '';
-      if (rVal && rVal !== '') html += '<span class="filter-chip">📍 ' + rLabel + '</span>';
-      if (cVal && cVal !== '') html += '<span class="filter-chip" style="margin-left:4px;">✨ ' + cLabel + '</span>';
+      if (rVal && rVal !== 'unknown' && rLabel !== UI_CONST.RESET_LABEL) {
+        html += '<span class="filter-chip">📍 ' + rLabel + '</span>';
+      }
+      if (cVal && cVal !== 'unknown' && cLabel !== UI_CONST.RESET_LABEL) {
+        html += '<span class="filter-chip" style="margin-left:4px;">✨ ' + cLabel + '</span>';
+      }
       chipArea.innerHTML = html;
     }
   `}} />
