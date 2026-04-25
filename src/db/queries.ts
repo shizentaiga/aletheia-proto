@@ -132,9 +132,9 @@ export async function fetchCafesByContext(
 
   const countQuery = `SELECT COUNT(*) as total FROM services ${whereSql}`;
 
-  // bind順: [ソート用パラメータ, WHERE句用パラメータ, LIMIT, OFFSET]
+  // bind順: [ソート用パラメータ, WHERE句用パラメータ, LIMIT, OFFSET](⭐️順序の誤りを修正。)
   const [dataResult, countResult] = await db.batch([
-    db.prepare(dataQuery).bind(...sortParams, ...whereParams, DISPLAY_LIMIT, offset),
+    db.prepare(dataQuery).bind(...whereParams, ...sortParams, DISPLAY_LIMIT, offset),
     db.prepare(countQuery).bind(...whereParams),
   ]);
 
