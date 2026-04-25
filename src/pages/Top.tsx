@@ -10,6 +10,7 @@
 /** @jsxImportSource hono/jsx */
 import { STYLES, SPACE } from '../styles/theme'
 import type { Cafe } from '../db/queries'
+import { getPrefectureName } from '../lib/constants' // 🌟 追加
 
 // サブ・コンポーネント
 import { DebugMonitor } from '../components/DebugMonitor'
@@ -50,7 +51,7 @@ interface CafeListProps {
   keyword?: string;
   region?: string;
   category?: string;
-  detectedRegion?: string; // 🌟 追加：現在地のヒント
+  detectedRegion?: string; // 🌟 現在地のヒント
 }
 
 export const CafeList = ({ 
@@ -65,7 +66,7 @@ export const CafeList = ({
     keyword: keyword || '',
     region: region || '',
     category: category || '',
-    detectedRegion: detectedRegion || '' // 🌟 追加読み込み時もソート順を維持するために継承
+    detectedRegion: detectedRegion || '' // 追加読み込み時もソート順を維持するために継承
   }).toString();
 
   return (
@@ -110,6 +111,9 @@ interface TopProps {
 
 export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword = '', region = '', category = '' }: TopProps) => {
   const isDev = env?.NODE_ENV === 'development';
+
+  // 🌟 Cloudflareからの英語名(Tokyo等)を日本語名(東京都)に変換
+  const jpnRegion = getPrefectureName(location?.region);
   
   return (
     <div style={STYLES.LAYOUT.WRAPPER}>
@@ -165,7 +169,6 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
               <SearchHeader totalCount={totalCount} />
               
               <div id="cafe-cards-root">
-                {/* 🌟 修正：現在地のヒント (location.region) を CafeList に渡す */}
                 <CafeList 
                   cafes={cafes} 
                   totalCount={totalCount} 
@@ -185,14 +188,13 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
         </div>
       </div>
 
-      {/* 💡 巨大なインラインJSを SearchLogic コンポーネントに隠蔽 */}
       <SearchLogic />
 
-      {/* 🌟 追加：現在地をUIに反映する初期化実行（SearchLogic読み込み後） */}
+      {/* 🌟 修正：日本語化された都道府県名(jpnRegion)を初期化関数に渡す */}
       <script dangerouslySetInnerHTML={{ __html: `
         document.addEventListener('DOMContentLoaded', () => {
           if (window.initSearchContext) {
-            window.initSearchContext('${location?.region || ''}');
+            window.initSearchContext('${jpnRegion}');
           }
         });
       `}} />

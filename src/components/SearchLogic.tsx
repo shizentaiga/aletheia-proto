@@ -60,7 +60,6 @@ export const SearchLogic = () => (
         
         if (hasSub) {
           html += '<div class="sub-menu">';
-          // 「〇〇全体」のラベルに定数を使用
           const allLabel = key + UI_CONST.AREA_ALL_SUFFIX;
           html += '<div class="sub-item" style="color: #4285F4; font-weight: bold;" onclick="finalizeSelection(\\'' + mode + '\\', \\'' + data.value + '\\', \\'' + key + '\\')">' + allLabel + '</div>';
           html += data.sub.map(function(item) {
@@ -98,7 +97,6 @@ export const SearchLogic = () => (
      * 3. 選択の確定ロジック
      */
     window.finalizeSelection = function(mode, val, label) {
-      // 判定条件を定数に依存させる
       const isReset = (val === '' || label === UI_CONST.ALL_COUNTRY || label === UI_CONST.RESET_LABEL);
       const hiddenInput = document.getElementById('hidden-' + mode);
       const labelElement = document.getElementById('current-' + mode + '-text');
@@ -121,16 +119,19 @@ export const SearchLogic = () => (
     };
 
     /**
-     * 4. 初期化ロジック (現在地ヒントの反映)
+     * 4. 初期化ロジック (現在地による自動絞り込みの反映)
      */
     window.initSearchContext = function(detectedPref) {
       const regionInput = document.getElementById('hidden-region');
       const regionLabel = document.getElementById('current-region-text');
 
+      // ユーザーが手動選択していない(空である)場合のみ、現在地をセット
       if (regionInput && regionInput.value === '') {
         if (detectedPref) {
-          // 「周辺」の文言に定数を使用
-          regionLabel.innerText = detectedPref + UI_CONST.REGION_HINT_SUFFIX;
+          // 🌟 修正ポイント: ラベルをセット
+          regionLabel.innerText = detectedPref;
+          // 🌟 修正ポイント: hidden inputにも値をセットし、絞り込みを確定させる
+          regionInput.value = detectedPref;
         }
       }
       updateFilterChips();

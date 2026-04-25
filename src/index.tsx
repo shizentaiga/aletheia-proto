@@ -52,7 +52,7 @@ app.get('/', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
 
-  // Cloudflareから位置情報を取得（detectedRegion として扱う）
+  // Cloudflareから位置情報を取得
   const cf = c.req.raw.cf as any 
   const locationInfo = {
     region: cf?.region || 'unknown',
@@ -62,17 +62,21 @@ app.get('/', async (c) => {
 
   // クエリパラメータの取得（検索条件）
   const keyword = c.req.query('keyword') || ''
-  const region = c.req.query('region') || '' 
   const category = c.req.query('category') || ''
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
+  // 🌟 修正ポイント：
+  // ユーザーが明示的に地域を指定 (region query) していない場合、
+  // Cloudflare の位置情報 (locationInfo.region) を絞り込み条件として使用する。
+  const queryRegion = c.req.query('region')
+  const effectiveRegion = queryRegion || (locationInfo.region !== 'unknown' ? locationInfo.region : '')
+
   // ユーザー情報とカフェ一覧を並列で取得
-  // 🌟 修正: 現在地ヒント (locationInfo.region) を DB クエリに渡す
   const [user, cafeResult] = await Promise.all([
     getCurrentUser(db, sessionUserId),
     fetchCafesByContext(db, { 
       keyword, 
-      region, 
+      region: effectiveRegion, // 🌟 位置情報を絞り込み用 region として渡す
       offset, 
       detectedRegion: locationInfo.region 
     }) 
@@ -87,7 +91,7 @@ app.get('/', async (c) => {
       totalCount={cafeResult.totalCount}
       location={locationInfo}
       keyword={keyword}
-      region={region}
+      region={effectiveRegion} // 🌟 決定された地域を渡す（UI側の初期値になる）
       category={category}
     />, 
     { title: 'メインポータル' }
@@ -108,7 +112,6 @@ app.get('/search', async (c) => {
   const category = c.req.query('category') || ''
   const offset = parseInt(c.req.query('offset') || '0', 10)
   
-  // 🌟 追加: URLパラメータから detectedRegion を取得（「さらに読み込む」用）
   const detectedRegion = c.req.query('detectedRegion') || ''
 
   // 指定された条件でDBからカフェを検索
@@ -116,7 +119,7 @@ app.get('/search', async (c) => {
     keyword, 
     offset,
     region,
-    detectedRegion // 🌟 クエリに反映（ソート順の維持）
+    detectedRegion 
   })
 
   // HTMX以外での直接アクセスの場合は Top をフルレンダリング
@@ -127,14 +130,12 @@ app.get('/search', async (c) => {
       <Top 
         user={user} env={c.env} cafes={cafes} totalCount={totalCount}
         keyword={keyword} region={region} category={category}
-        // location={{ region: detectedRegion, city: '', colo: '' }} // 必要に応じて
       />,
       { title: '検索結果' }
     )
   }
 
   // HTMXレスポンス
-  // 最初の検索時(offset=0)
   if (offset === 0) {
     return c.html(
       <>
@@ -148,14 +149,13 @@ app.get('/search', async (c) => {
             keyword={keyword} 
             region={region}
             category={category}
-            detectedRegion={detectedRegion} // 🌟 次のオフセットに引き継ぐ
+            detectedRegion={detectedRegion}
           />
         </div>
       </>
     )
   }
 
-  // 「さらに読み込む」ボタン押下時
   return c.html(
     <CafeList 
       cafes={cafes} 
@@ -164,7 +164,7 @@ app.get('/search', async (c) => {
       keyword={keyword} 
       region={region}
       category={category}
-      detectedRegion={detectedRegion} // 🌟 次のオフセットに引き継ぐ
+      detectedRegion={detectedRegion}
     />
   )
 })
