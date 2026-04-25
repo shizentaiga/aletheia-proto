@@ -17,6 +17,24 @@ export const SearchLogic = () => (
     const PREF_MAP = ${JSON.stringify(PREFECTURE_MASTER)};
 
     /**
+     * 🌟 新設：値(value)から日本語ラベルを逆引きする共通関数
+     */
+    function getLabelFromValue(mode, val) {
+      if (!val || val === 'unknown') return UI_CONST.RESET_LABEL;
+
+      const options = MASTER_DATA[mode].options;
+      // 1. MASTER_DATA.optionsの中から、valueが一致するキー(日本語)を探す
+      const foundKey = Object.keys(options).find(key => options[key].value === val);
+      if (foundKey) return foundKey;
+
+      // 2. 見つからない場合は都道府県マスタ(PREF_MAP)を確認
+      if (mode === 'region' && PREF_MAP[val]) return PREF_MAP[val];
+
+      // 3. それでもなければ値をそのまま返す
+      return val;
+    }
+
+    /**
      * 2. ドリルダウン制御
      */
     function closeAllDrilldowns() {
@@ -98,7 +116,6 @@ export const SearchLogic = () => (
      * 3. 選択の確定ロジック
      */
     window.finalizeSelection = function(mode, val, label) {
-      const isReset = (val === '' || label === UI_CONST.ALL_COUNTRY || label === UI_CONST.RESET_LABEL);
       const hiddenInput = document.getElementById('hidden-' + mode);
       const labelElement = document.getElementById('current-' + mode + '-text');
       const form = document.getElementById('search-form');
@@ -106,8 +123,8 @@ export const SearchLogic = () => (
       if (hiddenInput) hiddenInput.value = val;
       
       if (labelElement) {
-        const displayLabel = (mode === 'region' && PREF_MAP[val]) ? PREF_MAP[val] : label;
-        labelElement.innerText = isReset ? UI_CONST.RESET_LABEL : displayLabel;
+        // 🌟 逆引き関数を使用して常に適切な日本語を表示
+        labelElement.innerText = getLabelFromValue(mode, val);
       }
 
       if (form) {
@@ -123,10 +140,9 @@ export const SearchLogic = () => (
     };
 
     /**
-     * 🌟 新設：フィルター解除ロジック
+     * フィルター解除ロジック
      */
     window.removeFilter = function(mode) {
-      // 値を空にして確定ロジックを呼ぶことで、UIリセットと再検索を同時に行う
       window.finalizeSelection(mode, '', UI_CONST.RESET_LABEL);
     };
 
@@ -147,12 +163,8 @@ export const SearchLogic = () => (
         if (input) input.value = val;
 
         if (label) {
-          if (!val || val === 'unknown') {
-            label.innerText = UI_CONST.RESET_LABEL;
-          } else {
-            const displayName = (mode === 'region' && PREF_MAP[val]) ? PREF_MAP[val] : val;
-            label.innerText = displayName;
-          }
+          // 🌟 同期時も逆引き関数を使用
+          label.innerText = getLabelFromValue(mode, val);
         }
       });
 
@@ -171,17 +183,18 @@ export const SearchLogic = () => (
 
       let html = '';
       
-      // 🌟 地域チップに解除イベントと✕マークを追加
       if (rVal && rVal !== 'unknown' && rVal !== '') {
-        const rLabel = PREF_MAP[rVal] || rVal;
+        // 🌟 チップのラベルも逆引きで日本語化
+        const rLabel = getLabelFromValue('region', rVal);
         html += '<span class="filter-chip" onclick="removeFilter(\\'region\\')">' + 
                 '📍 ' + rLabel + '<span style="margin-left:6px; opacity:0.5;">✕</span></span>';
       }
       
-      // 🌟 カテゴリチップに解除イベントと✕マークを追加
       if (cVal && cVal !== 'unknown' && cVal !== '') {
+        // 🌟 カテゴリチップも逆引きで日本語化
+        const cLabel = getLabelFromValue('category', cVal);
         html += '<span class="filter-chip" style="margin-left:4px;" onclick="removeFilter(\\'category\\')">' + 
-                '✨ ' + cVal + '<span style="margin-left:6px; opacity:0.5;">✕</span></span>';
+                '✨ ' + cLabel + '<span style="margin-left:6px; opacity:0.5;">✕</span></span>';
       }
       chipArea.innerHTML = html;
     }
