@@ -93,14 +93,20 @@ export async function fetchCafesByContext(
     }
   }
 
-  // --- 2. キーワード検索 ---
+// --- 2. キーワード検索 (複合ワード対応) ---
   if (keyword) {
-    whereClauses.push("(title LIKE ? OR address LIKE ?)");
-    whereParams.push(`%${keyword}%`, `%${keyword}%`);
+    // 全角・半角スペースで分割し、空の要素を除外
+    const keywords = keyword.split(/[\s\u3000]+/).filter(Boolean);
+    
+    keywords.forEach(kw => {
+      // 各単語が title または address のいずれかに含まれる (AND条件で蓄積)
+      whereClauses.push("(title LIKE ? OR address LIKE ?)");
+      whereParams.push(`%${kw}%`, `%${kw}%`);
+    });
   }
 
   const whereSql = `WHERE ${whereClauses.join(" AND ")}`;
-
+  
   // --- 3. ソート順の構築 ---
   let sortClause = "created_at DESC";
   let sortParams: any[] = [];
