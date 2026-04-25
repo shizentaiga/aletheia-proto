@@ -4,10 +4,21 @@
  */
 
 /**
- * ISO 3166-2:JP に準拠した都道府県マッピング
+ * 1. UI表示用の固定文言（ラベル）の一元管理
  */
-export const JP_PREFECTURES: Record<string, string> = {
-  // 北海道・東北
+export const UI_TEXT = {
+  RESET_LABEL: '指定なし',
+  ALL_COUNTRY: '全国',
+  REGION_HINT_SUFFIX: '周辺',
+  AREA_ALL_SUFFIX: '全体',
+} as const;
+
+/**
+ * 2. 都道府県の正規マスターデータ
+ * ISO 3166-2:JP に準拠したコード、英語名、日本語名を統合。
+ * Cloudflareからの入力 ("Tokyo") やコード ("13") をすべてここに集約。
+ */
+export const PREFECTURE_MASTER: Record<string, string> = {
   "01": "北海道", "Hokkaido": "北海道",
   "02": "青森県", "Aomori": "青森県",
   "03": "岩手県", "Iwate": "岩手県",
@@ -15,8 +26,6 @@ export const JP_PREFECTURES: Record<string, string> = {
   "05": "秋田県", "Akita": "秋田県",
   "06": "山形県", "Yamagata": "山形県",
   "07": "福島県", "Fukushima": "福島県",
-
-  // 関東
   "08": "茨城県", "Ibaraki": "茨城県",
   "09": "栃木県", "Tochigi": "栃木県",
   "10": "群馬県", "Gunma": "群馬県",
@@ -24,8 +33,6 @@ export const JP_PREFECTURES: Record<string, string> = {
   "12": "千葉県", "Chiba": "千葉県",
   "13": "東京都", "Tokyo": "東京都",
   "14": "神奈川県", "Kanagawa": "神奈川県",
-
-  // 中部
   "15": "新潟県", "Niigata": "新潟県",
   "16": "富山県", "Toyama": "富山県",
   "17": "石川県", "Ishikawa": "石川県",
@@ -35,8 +42,6 @@ export const JP_PREFECTURES: Record<string, string> = {
   "21": "岐阜県", "Gifu": "岐阜県",
   "22": "静岡県", "Shizuoka": "静岡県",
   "23": "愛知県", "Aichi": "愛知県",
-
-  // 近畿
   "24": "三重県", "Mie": "三重県",
   "25": "滋賀県", "Shiga": "滋賀県",
   "26": "京都府", "Kyoto": "京都府",
@@ -44,8 +49,6 @@ export const JP_PREFECTURES: Record<string, string> = {
   "28": "兵庫県", "Hyogo": "兵庫県",
   "29": "奈良県", "Nara": "奈良県",
   "30": "和歌山県", "Wakayama": "和歌山県",
-
-  // 中国・四国
   "31": "鳥取県", "Tottori": "鳥取県",
   "32": "島根県", "Shimane": "島根県",
   "33": "岡山県", "Okayama": "岡山県",
@@ -55,8 +58,6 @@ export const JP_PREFECTURES: Record<string, string> = {
   "37": "香川県", "Kagawa": "香川県",
   "38": "愛媛県", "Ehime": "愛媛県",
   "39": "高知県", "Kochi": "高知県",
-
-  // 九州・沖縄
   "40": "福岡県", "Fukuoka": "福岡県",
   "41": "佐賀県", "Saga": "佐賀県",
   "42": "長崎県", "Nagasaki": "長崎県",
@@ -68,8 +69,7 @@ export const JP_PREFECTURES: Record<string, string> = {
 } as const;
 
 /**
- * 🌟 追加: 地方（Region）から都道府県リストへのマッピング
- * SearchLogic.tsx の MASTER_DATA.region.options の value と対応
+ * 3. 地方（Region）区分と所属都道府県の定義
  */
 export const JP_REGIONS: Record<string, string[]> = {
   hokkaido: ["北海道"],
@@ -83,9 +83,46 @@ export const JP_REGIONS: Record<string, string[]> = {
 } as const;
 
 /**
- * CloudflareのRegionプロパティから日本語都道府県名を解決するユーティリティ
+ * 4. 検索UI用のマスターデータ
+ * SearchLogic.tsx に注入するデータの構造をここで定義します。
+ */
+export const SEARCH_MASTER = {
+  region: {
+    title: 'エリアを選択',
+    options: {
+      [UI_TEXT.ALL_COUNTRY]: { value: '', sub: null },
+      '北海道': { value: 'hokkaido', sub: JP_REGIONS.hokkaido },
+      '東北': { value: 'tohoku', sub: JP_REGIONS.tohoku },
+      '関東': { value: 'kanto', sub: JP_REGIONS.kanto },
+      '中部': { value: 'chubu', sub: JP_REGIONS.chubu },
+      '近畿': { value: 'kinki', sub: JP_REGIONS.kinki },
+      '中国': { value: 'chugoku', sub: JP_REGIONS.chugoku },
+      '四国': { value: 'shikoku', sub: JP_REGIONS.shikoku },
+      '九州・沖縄': { value: 'kyushu', sub: JP_REGIONS.kyushu }
+    }
+  },
+  category: {
+    title: '特徴を選択',
+    options: {
+      [UI_TEXT.RESET_LABEL]: { value: '', sub: null },
+      'Wi-Fiあり': { value: 'wifi', sub: null },
+      '電源あり': { value: 'power', sub: null },
+      '禁煙': { value: 'no-smoking', sub: null }
+    }
+  }
+} as const;
+
+/**
+ * 5. 互換用ユーティリティ
+ */
+
+// 既存コードが JP_PREFECTURES を参照している場合の互換性維持
+export const JP_PREFECTURES = PREFECTURE_MASTER;
+
+/**
+ * CloudflareのRegionプロパティから日本語都道府県名を解決する
  */
 export const getPrefectureName = (region: string | undefined): string => {
   if (!region) return "";
-  return JP_PREFECTURES[region] || "";
+  return PREFECTURE_MASTER[region] || "";
 };

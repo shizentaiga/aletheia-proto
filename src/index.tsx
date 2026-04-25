@@ -26,7 +26,7 @@ import { renderer } from './renderer'
 import { Top, CafeList } from './pages/Top' 
 import { sandboxApp } from './_sandbox/_router'
 
-// 【ポイント1】UIパーツの部品化
+// UIパーツの部品化
 import { SearchHeader } from './components/SearchHeader'
 
 import { authApp, AUTH_CONFIG, getCurrentUser } from './lib/auth'
@@ -52,7 +52,7 @@ app.get('/', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
 
-  // Cloudflareから位置情報を取得
+  // Cloudflareから位置情報を取得（detectedRegion として扱う）
   const cf = c.req.raw.cf as any 
   const locationInfo = {
     region: cf?.region || 'unknown',
@@ -67,9 +67,15 @@ app.get('/', async (c) => {
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
   // ユーザー情報とカフェ一覧を並列で取得
+  // 🌟 修正: 現在地ヒント (locationInfo.region) を DB クエリに渡す
   const [user, cafeResult] = await Promise.all([
     getCurrentUser(db, sessionUserId),
-    fetchCafesByContext(db, { keyword, region, offset }) 
+    fetchCafesByContext(db, { 
+      keyword, 
+      region, 
+      offset, 
+      detectedRegion: locationInfo.region 
+    }) 
   ])
 
   // ページ全体を表示
@@ -94,22 +100,26 @@ app.get('/', async (c) => {
 app.get('/search', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   
-  // 💡 HTMXリクエストか判定（ヘッダーを確認）
+  // HTMXリクエストか判定
   const isHtmx = c.req.header('HX-Request') === 'true'
 
   const keyword = c.req.query('keyword') || ''
   const region = c.req.query('region') || ''
   const category = c.req.query('category') || ''
   const offset = parseInt(c.req.query('offset') || '0', 10)
+  
+  // 🌟 追加: URLパラメータから detectedRegion を取得（「さらに読み込む」用）
+  const detectedRegion = c.req.query('detectedRegion') || ''
 
   // 指定された条件でDBからカフェを検索
   const { cafes, totalCount } = await fetchCafesByContext(db, { 
     keyword, 
     offset,
-    region
+    region,
+    detectedRegion // 🌟 クエリに反映（ソート順の維持）
   })
 
-  // 💡 リロード等、HTMX以外での直接アクセスの場合は Top をフルレンダリング
+  // HTMX以外での直接アクセスの場合は Top をフルレンダリング
   if (!isHtmx) {
     const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
     const user = await getCurrentUser(db, sessionUserId)
@@ -117,20 +127,19 @@ app.get('/search', async (c) => {
       <Top 
         user={user} env={c.env} cafes={cafes} totalCount={totalCount}
         keyword={keyword} region={region} category={category}
+        // location={{ region: detectedRegion, city: '', colo: '' }} // 必要に応じて
       />,
       { title: '検索結果' }
     )
   }
 
-  // 【ポイント2】HTMXレスポンスの整理
-  // 最初の検索時(offset=0)は、件数表示(SearchHeader)とリストの両方を返します。
+  // HTMXレスポンス
+  // 最初の検索時(offset=0)
   if (offset === 0) {
     return c.html(
       <>
-        {/* インラインHTMLを排除し、SearchHeader部品を呼び出し */}
         <SearchHeader totalCount={totalCount} />
         
-        {/* 検索結果のリスト表示 */}
         <div id="cafe-cards-root">
           <CafeList 
             cafes={cafes} 
@@ -139,13 +148,14 @@ app.get('/search', async (c) => {
             keyword={keyword} 
             region={region}
             category={category}
+            detectedRegion={detectedRegion} // 🌟 次のオフセットに引き継ぐ
           />
         </div>
       </>
     )
   }
 
-  // 「さらに読み込む」ボタン押下時は、追加分のリスト(CafeList)のみを返します。
+  // 「さらに読み込む」ボタン押下時
   return c.html(
     <CafeList 
       cafes={cafes} 
@@ -154,6 +164,7 @@ app.get('/search', async (c) => {
       keyword={keyword} 
       region={region}
       category={category}
+      detectedRegion={detectedRegion} // 🌟 次のオフセットに引き継ぐ
     />
   )
 })

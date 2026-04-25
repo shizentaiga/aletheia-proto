@@ -47,7 +47,7 @@ export interface RegionStat {
 export interface FetchCafesResponse {
   cafes: Cafe[];
   totalCount: number;
-  offset: number; // 現在のオフセット値を返す（UI側での管理用）
+  offset: number; // 現在のオフセット値を返す
 }
 
 // -----------------------------------------------------------------------------
@@ -56,70 +56,80 @@ export interface FetchCafesResponse {
 
 /**
  * 3-1. カフェ一覧・検索取得 (fetchCafesByContext)
- * 地方(Region)指定、都道府県・市区町村、キーワード検索を統合して処理します。
+ * 地方指定、都道府県・市区町村、キーワード検索を統合して処理。
+ * ユーザーが明示的に地域を指定していない場合は現在地を優先ソートします。
  */
 export async function fetchCafesByContext(
   db: D1Database,
   options: { 
-    region?: string; 
+    region?: string;         // ユーザーが選択した絞り込み（kanto, 東京都, shibuya-ku等）
+    detectedRegion?: string; // 現在地ヒント（Tokyo, Osaka等の生データ想定）
     keyword?: string; 
     offset?: number 
   } = {}
 ): Promise<FetchCafesResponse> {
-  const { region, keyword, offset = 0 } = options;
+  const { region, detectedRegion, keyword, offset = 0 } = options;
   
   let whereClauses: string[] = ["deleted_at IS NULL"];
-  let params: any[] = [];
+  let whereParams: any[] = [];
 
-  // 1. 地域フィルタの正規化
+  // --- 1. 地域フィルタの構築 (絞り込み) ---
   if (region) {
-    // 🌟 A. 地方識別子 (kanto, tohoku 等) の判定
     const regionPrefectures = JP_REGIONS[region];
 
     if (regionPrefectures) {
-      // 地方検索の場合：IN 句を用いて属する全県を対象にする
+      // 地方検索の場合（kanto等）：所属する全県をIN句で指定
       const placeholders = regionPrefectures.map(() => "?").join(", ");
       whereClauses.push(`prefecture IN (${placeholders})`);
-      params.push(...regionPrefectures);
+      whereParams.push(...regionPrefectures);
     } else {
-      // 🌟 B. 従来の都道府県・市区町村検索
-      // Cloudflareの生データ(13, Tokyo等)を「東京都」形式に変換を試みる
+      // 個別の都道府県名・市区町村名での検索
+      // constants.ts の変換関数を通し、英語名("Tokyo")でも日本語名に正規化
       const mappedPref = getPrefectureName(region);
+      const targetValue = mappedPref || region;
       
-      if (mappedPref) {
-        // 変換成功：マッピング後の日本語名で検索
-        whereClauses.push("(prefecture = ? OR city = ?)");
-        params.push(mappedPref, mappedPref);
-      } else {
-        // 変換不可：直接入力された名称（市区町村名や「東京都」など）として処理
-        whereClauses.push("(prefecture = ? OR city = ?)");
-        params.push(region, region);
-      }
+      whereClauses.push("(prefecture = ? OR city = ?)");
+      whereParams.push(targetValue, targetValue);
     }
   }
 
-  // 2. キーワード検索
+  // --- 2. キーワード検索 ---
   if (keyword) {
     whereClauses.push("(title LIKE ? OR address LIKE ?)");
-    params.push(`%${keyword}%`, `%${keyword}%`);
+    whereParams.push(`%${keyword}%`, `%${keyword}%`);
   }
 
   const whereSql = `WHERE ${whereClauses.join(" AND ")}`;
 
-  // --- クエリ実行 ---
+  // --- 3. ソート順の構築 ---
+  let sortClause = "created_at DESC";
+  let sortParams: any[] = [];
+
+  // 明示的な地域選択がない場合、現在地（detectedRegion）を最優先にする
+  if (!region && detectedRegion) {
+    // 🌟 重要: 生の現在地("Tokyo")を日本語("東京都")に変換してクエリに使用
+    const jpnDetectedRegion = getPrefectureName(detectedRegion);
+    if (jpnDetectedRegion) {
+      sortClause = `CASE WHEN prefecture = ? THEN 0 ELSE 1 END, created_at DESC`;
+      sortParams.push(jpnDetectedRegion);
+    }
+  }
+
+  // --- 4. クエリ実行 ---
   const dataQuery = `
     SELECT service_id, title, address, prefecture, city
     FROM services
     ${whereSql}
-    ORDER BY created_at DESC
+    ORDER BY ${sortClause}
     LIMIT ? OFFSET ?
   `;
 
   const countQuery = `SELECT COUNT(*) as total FROM services ${whereSql}`;
 
+  // bind順: [ソート用パラメータ, WHERE句用パラメータ, LIMIT, OFFSET]
   const [dataResult, countResult] = await db.batch([
-    db.prepare(dataQuery).bind(...params, DISPLAY_LIMIT, offset),
-    db.prepare(countQuery).bind(...params),
+    db.prepare(dataQuery).bind(...sortParams, ...whereParams, DISPLAY_LIMIT, offset),
+    db.prepare(countQuery).bind(...whereParams),
   ]);
 
   return {

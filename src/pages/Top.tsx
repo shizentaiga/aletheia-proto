@@ -50,9 +50,12 @@ interface CafeListProps {
   keyword?: string;
   region?: string;
   category?: string;
+  detectedRegion?: string; // 🌟 追加：現在地のヒント
 }
 
-export const CafeList = ({ cafes, totalCount, offset = 0, keyword = '', region = '', category = '' }: CafeListProps) => {
+export const CafeList = ({ 
+  cafes, totalCount, offset = 0, keyword = '', region = '', category = '', detectedRegion = '' 
+}: CafeListProps) => {
   const nextOffset = offset + cafes.length;
   const hasMore = nextOffset < totalCount;
   
@@ -61,7 +64,8 @@ export const CafeList = ({ cafes, totalCount, offset = 0, keyword = '', region =
     offset: nextOffset.toString(),
     keyword: keyword || '',
     region: region || '',
-    category: category || ''
+    category: category || '',
+    detectedRegion: detectedRegion || '' // 🌟 追加読み込み時もソート順を維持するために継承
   }).toString();
 
   return (
@@ -109,7 +113,7 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
   
   return (
     <div style={STYLES.LAYOUT.WRAPPER}>
-      {/* 💡 CSS定義のみを保持（将来的にはstyles/ディレクトリへの移動も検討） */}
+      {/* 💡 CSS定義のみを保持 */}
       <style>{`
         .drilldown-item { 
           padding: ${SPACE.MD}; 
@@ -158,11 +162,19 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
 
           <main style={STYLES.LAYOUT.LIST} id="cafe-list-container">
             <div id="search-results-area">
-              {/* 💡 SearchHeader を呼び出し */}
               <SearchHeader totalCount={totalCount} />
               
               <div id="cafe-cards-root">
-                <CafeList cafes={cafes} totalCount={totalCount} keyword={keyword} region={region} category={category} offset={0} />
+                {/* 🌟 修正：現在地のヒント (location.region) を CafeList に渡す */}
+                <CafeList 
+                  cafes={cafes} 
+                  totalCount={totalCount} 
+                  keyword={keyword} 
+                  region={region} 
+                  category={category} 
+                  detectedRegion={location?.region}
+                  offset={0} 
+                />
               </div>
             </div>
           </main>
@@ -175,6 +187,15 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
 
       {/* 💡 巨大なインラインJSを SearchLogic コンポーネントに隠蔽 */}
       <SearchLogic />
+
+      {/* 🌟 追加：現在地をUIに反映する初期化実行（SearchLogic読み込み後） */}
+      <script dangerouslySetInnerHTML={{ __html: `
+        document.addEventListener('DOMContentLoaded', () => {
+          if (window.initSearchContext) {
+            window.initSearchContext('${location?.region || ''}');
+          }
+        });
+      `}} />
     </div>
   );
 }
