@@ -21,7 +21,7 @@ import { sandboxApp } from './_sandbox/_router'
 import { SearchHeader } from './components/SearchHeader'
 import { authApp, AUTH_CONFIG, getCurrentUser } from './lib/auth'
 import { fetchCafesByContext } from './db/cafe_queries' 
-import { handleAreaStats } from './api_handlers'
+import { handleAreaStats, getCloudflareLocation } from './api_handlers'
 
 /**
  * 共通バインディング定義（環境変数・D1 DB接続等）
@@ -54,14 +54,9 @@ app.get('/', async (c) => {
 
   /**
    * 1. インフラ層（Cloudflare）からの位置情報取得
-   * デプロイ環境の地域（region）や都市（city）情報を取得し、初期検索のヒントにする
+   * ハンドラ側に切り出した関数を呼び出し
    */
-  const cf = (c.req.raw as any).cf
-  const locationInfo = {
-    region: cf?.region || 'unknown',
-    city: cf?.city || 'unknown',
-    colo: cf?.colo || 'unknown'
-  }
+  const locationInfo = getCloudflareLocation(c)
 
   // 検索パラメータのパース
   const keyword = c.req.query('keyword') || ''

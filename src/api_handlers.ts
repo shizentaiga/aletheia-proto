@@ -8,6 +8,21 @@ import { Context } from 'hono'
 import { getAllAreaStats } from './db/cafe_queries'
 
 /**
+ * Cloudflareのコンテキストから位置情報を抽出するユーティリティ関数
+ * (index.tsx からのロジック移動)
+ */
+export const getCloudflareLocation = (c: Context) => {
+  // c.req.raw を unknown 経由でキャストして型安全にプロパティ参照
+  const cf = (c.req.raw as unknown as { cf: any }).cf
+  
+  return {
+    region: cf?.region || 'unknown',
+    city: cf?.city || 'unknown',
+    colo: cf?.colo || 'unknown'
+  }
+}
+
+/**
  * [GET] /api/area-stats
  * エリアごとの店舗統計データ（各市区町村に何件店舗があるか）を返すハンドラ
  * * @param c - Honoのコンテキスト。環境変数（DB接続など）やリクエスト情報が含まれます。
@@ -19,7 +34,6 @@ export const handleAreaStats = async (c: Context) => {
   
   try {
     // データベースからすべてのエリアの統計情報を取得
-    // 戻り値の例: [{ prefecture: "東京都", city: "新宿区", count: 12 }, ...]
     const stats = await getAllAreaStats(db)
     
     // 成功時：フロントエンドが処理しやすい構造で JSON を返却
