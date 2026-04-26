@@ -9,7 +9,7 @@ import { SEARCH_MASTER, UI_TEXT, PREFECTURE_MASTER } from '../lib/constants'
 export const SearchLogic = () => (
   <script dangerouslySetInnerHTML={{ __html: `
     /**
-     * 1. 定数の注入（サーバーサイドの定数をJSに引き継ぎ）
+     * 1. 定数の注入
      */
     const MASTER_DATA = ${JSON.stringify(SEARCH_MASTER)};
     const UI_CONST = ${JSON.stringify(UI_TEXT)};
@@ -17,7 +17,6 @@ export const SearchLogic = () => (
 
     /**
      * 1-2. エリア統計データの取得とマージ
-     * APIから「店舗がある市区町村」を取得し、メニューに(件数)を反映する
      */
     async function refreshAreaStats() {
       try {
@@ -25,23 +24,19 @@ export const SearchLogic = () => (
         const json = await res.json();
         if (!json.success) return;
 
-        // 都道府県ごとに市区町村をまとめる
         const statsByPref = json.data.reduce((acc, item) => {
           if (!acc[item.prefecture]) acc[item.prefecture] = [];
           acc[item.prefecture].push({ label: item.city, count: item.count });
           return acc;
         }, {});
 
-        // 取得したデータを MASTER_DATA に流し込む
         Object.keys(statsByPref).forEach(pref => {
           if (!MASTER_DATA.region.options[pref]) {
             MASTER_DATA.region.options[pref] = { value: pref, sub: [] };
           }
-          // 表示ラベルを「市区町村 (件数)」に整形
           MASTER_DATA.region.options[pref].sub = statsByPref[pref].map(s => s.label + ' (' + s.count + ')');
         });
 
-        // データ反映後にエリア選択メニューを再描画
         const regionContainer = document.getElementById('drilldown-region');
         if (regionContainer) {
           renderDrilldownMenu('region', regionContainer);
@@ -55,9 +50,6 @@ export const SearchLogic = () => (
 
     refreshAreaStats();
 
-    /**
-     * IDやコードから日本語名を取得する（例: "tokyo" -> "東京都"）
-     */
     function getLabelFromValue(mode, val) {
       if (!val || val === 'unknown') return UI_CONST.RESET_LABEL;
       const options = MASTER_DATA[mode].options;
@@ -85,7 +77,7 @@ export const SearchLogic = () => (
       closeAllDrilldowns();
 
       if (!isAlreadyOpen) {
-        renderDrilldownMenu(mode, container); // 開く瞬間に中身を生成
+        renderDrilldownMenu(mode, container);
         container.style.display = 'block';
         container.style.maxHeight = '400px';
         container.style.overflowY = 'auto';
@@ -97,7 +89,7 @@ export const SearchLogic = () => (
     };
 
     /**
-     * メニューのHTMLを生成する（地方 > 都道府県 > 市区町村の階層化）
+     * メニューのHTMLを生成
      */
     function renderDrilldownMenu(mode, container) {
       const modeData = MASTER_DATA[mode];
@@ -115,11 +107,10 @@ export const SearchLogic = () => (
         
         if (hasSub) {
           html += '<div class="sub-menu">';
-          const allLabel = key + UI_CONST.AREA_ALL_SUFFIX; // 例: 「関東全体」
+          const allLabel = key + UI_CONST.AREA_ALL_SUFFIX;
           html += '<div class="sub-item" style="color: #4285F4; font-weight: bold;" onclick="finalizeSelection(\\'' + mode + '\\', \\'' + data.value + '\\', \\'' + key + '\\')">' + allLabel + '</div>';
           
           html += data.sub.map(function(item) {
-            // 都道府県名（例: 東京都）の場合は、さらに市区町村へ掘り下げる設定
             const isPrefecture = mode === 'region' && (PREF_MAP[item] || /.*[都道府県道]$/.test(item));
             
             if (isPrefecture) {
@@ -128,7 +119,6 @@ export const SearchLogic = () => (
                      '<div class="sub-menu" id="sub-' + item + '"></div>';
             }
 
-            // 市区町村名（例: 新宿区 (5)）から検索用の値を取得
             const val = item.split(' (')[0];
             return '<div class="sub-item" onclick="finalizeSelection(\\'' + mode + '\\', \\'' + val + '\\', \\'' + item + '\\')">' + item + '</div>';
           }).join('');
@@ -140,7 +130,7 @@ export const SearchLogic = () => (
     }
 
     /**
-     * 都道府県クリック時に、その下の市区町村リストを表示
+     * 都道府県クリック時に市区町村を展開（先頭に「XX県全体」を追加）
      */
     window.handlePrefectureClick = function(el, prefName) {
       if (window.event) window.event.stopPropagation();
@@ -148,18 +138,28 @@ export const SearchLogic = () => (
       const arrow = el.querySelector('.arrow');
       const isShowing = subMenu.classList.contains('show');
       
-      // 他の開いている県メニューを閉じる
       el.parentElement.querySelectorAll('.sub-menu').forEach(m => { if(m !== subMenu) m.classList.remove('show') });
       el.parentElement.querySelectorAll('.arrow').forEach(a => { if(a !== arrow) a.classList.remove('open') });
       
       if (!isShowing) {
         const prefData = MASTER_DATA.region.options[prefName];
         if (prefData && prefData.sub && prefData.sub.length > 0) {
-          // 市区町村リストのHTMLを注入
-          subMenu.innerHTML = prefData.sub.map(function(cityWithCount) {
+          
+          // 1. 「東京都全体」のようなラベルを作成
+          const allInPrefLabel = prefName + UI_CONST.AREA_ALL_SUFFIX;
+          
+          // 2. 先頭に「全体」オプションを生成
+          let html = '<div class="sub-item" style="padding-left: 3rem; color: #4285F4; font-weight: bold;" ' +
+                     'onclick="finalizeSelection(\\'region\\', \\'' + prefName + '\\', \\'' + allInPrefLabel + '\\')">' + 
+                     allInPrefLabel + '</div>';
+          
+          // 3. 市区町村リストを結合
+          html += prefData.sub.map(function(cityWithCount) {
             const cityVal = cityWithCount.split(' (')[0];
             return '<div class="sub-item" style="padding-left: 3rem;" onclick="finalizeSelection(\\'region\\', \\'' + cityVal + '\\', \\'' + cityWithCount + '\\')">' + cityWithCount + '</div>';
           }).join('');
+          
+          subMenu.innerHTML = html;
         } else {
           subMenu.innerHTML = '<div class="sub-item" style="padding-left: 3rem; color: #ccc;">店舗データなし</div>';
         }
@@ -171,9 +171,6 @@ export const SearchLogic = () => (
       }
     };
 
-    /**
-     * 通常の項目（サブメニューがないもの）がクリックされた時の処理
-     */
     window.handleItemClick = function(el, mode, key) {
       if (window.event) window.event.stopPropagation();
       const data = MASTER_DATA[mode].options[key];
@@ -211,25 +208,18 @@ export const SearchLogic = () => (
         form.setAttribute('data-current-' + mode, val);
       }
       
-      updateFilterChips(); // チップ（📍東京 ✕）の更新
+      updateFilterChips();
       closeAllDrilldowns();
       
-      // HTMX経由でフォームを自動送信し、検索結果を更新
       if (window.htmx) {
         window.htmx.trigger(form, 'submit');
       }
     };
 
-    /**
-     * フィルター解除（「指定なし」に戻す）
-     */
     window.removeFilter = function(mode) {
       window.finalizeSelection(mode, '', UI_CONST.RESET_LABEL);
     };
 
-    /**
-     * フォームの状態に合わせてUI（表示文字など）を同期
-     */
     window.syncUIFromData = function() {
       const form = document.getElementById('search-form');
       if (!form) return;
@@ -246,9 +236,6 @@ export const SearchLogic = () => (
       updateFilterChips();
     };
 
-    /**
-     * 選択中の条件を「チップ」として表示
-     */
     function updateFilterChips() {
       const chipArea = document.getElementById('active-filters');
       if (!chipArea) return;
