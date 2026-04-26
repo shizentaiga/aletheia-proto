@@ -14,17 +14,17 @@
 import { Hono } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { renderer } from './renderer'
-import { Top, CafeList } from './pages/Top' 
+import { Top } from './pages/Top' 
 import { sandboxApp } from './_sandbox/_router'
 
-// コンポーネント、認証、データアクセス、および共通ハンドラのインポート
-import { SearchHeader } from './components/SearchHeader'
+// 認証、データアクセス、および共通ハンドラのインポート
 import { authApp, AUTH_CONFIG, getCurrentUser } from './lib/auth'
 import { fetchCafesByContext } from './db/cafe_queries' 
 import { 
   handleAreaStats, 
   getCloudflareLocation, 
-  getSearchParams 
+  getSearchParams,
+  renderCafeSearchResults
 } from './api_handlers'
 
 /**
@@ -95,65 +95,14 @@ app.get('/', async (c) => {
  * - フォーム送信時や追加読み込み時に呼ばれ、HTMX経由ならHTML断片のみを返却
  */
 app.get('/search', async (c) => {
-  const db = c.env.ALETHEIA_PROTO_DB
-  const isHtmx = c.req.header('HX-Request') === 'true'
-
-  // 1. 検索パラメータの取得（外部ロジックに委譲）
-  const { keyword, region, category, offset, detectedRegion } = getSearchParams(c)
+  // 1. 検索パラメータの取得
+  const params = getSearchParams(c)
 
   // 2. 指定された条件でDBから店舗情報をフェッチ
-  const { cafes, totalCount } = await fetchCafesByContext(db, { 
-    keyword, 
-    offset,
-    region,
-    detectedRegion 
-  })
+  const results = await fetchCafesByContext(c.env.ALETHEIA_PROTO_DB, params)
 
-  // 3. 非HTMXリクエスト（直URLアクセス等）の場合：フルページを返却
-  if (!isHtmx) {
-    const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
-    const user = await getCurrentUser(db, sessionUserId)
-    return c.render(
-      <Top 
-        user={user} env={c.env} cafes={cafes} totalCount={totalCount}
-        keyword={keyword} region={region} category={category}
-      />,
-      { title: '検索結果' }
-    )
-  }
-
-  // 4. HTMXリクエスト（初期検索）の場合：件数ヘッダーとリストのセットを返却
-  if (offset === 0) {
-    return c.html(
-      <>
-        <SearchHeader totalCount={totalCount} />
-        <div id="cafe-cards-root">
-          <CafeList 
-            cafes={cafes} 
-            totalCount={totalCount} 
-            offset={offset} 
-            keyword={keyword} 
-            region={region}
-            category={category}
-            detectedRegion={detectedRegion}
-          />
-        </div>
-      </>
-    )
-  }
-
-  // 5. HTMXリクエスト（無限スクロール等）の場合：リストの続きのみを返却
-  return c.html(
-    <CafeList 
-      cafes={cafes} 
-      totalCount={totalCount} 
-      offset={offset} 
-      keyword={keyword} 
-      region={region}
-      category={category}
-      detectedRegion={detectedRegion}
-    />
-  )
+  // 3. レンダリング処理（HTMX判定含む）をハンドラ側へ委譲
+  return renderCafeSearchResults(c, params, results)
 })
 
 /**
