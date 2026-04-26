@@ -27,61 +27,16 @@ VALUES
 ('NODE_TABATA', '田端駅', 'station', '山手線', 'xn775v100', 35.7381, 139.7608, '東京都北区');
 
 -- 3. サービス・店舗データの投入 (attributes_jsonに設備を集約)
-INSERT OR REPLACE INTO services (
-    service_id, owner_id, plan_id, ext_place_id, ext_source, 
-    title, address, prefecture, city, geohash_9, lat, lng, 
-    attributes_json, verification_level, version
-) VALUES  
--- --- 東京駅エリア ---
-(
-    'SRV_MARUNOUCHI_001', '01ARZ3NDEKTSV4RRFFQ69G5FAV', 'pro', 
-    'ChIJL6X7B9-LGGAR6E7Y9p9Y9pI', 'google', 
-    '☕ Coffee 丸の内', '東京都千代田区丸の内1-1', '東京都', '千代田区', 'xn76ghj00', 35.6812, 139.7671, 
-    '{"wifi": true, "power": true, "seats": 30}', 1, 1
-),
-(
-    'SRV_TOKYO_ST_002', '01ARZ3NDEKTSV4RRFFQ69G5FAV', 'pro', 
-    'ChIJ_5p_p-uLGGAR_SAMPLE_ID', 'google', 
-    '💻 Station Work Tokyo', '東京都千代田区丸の内1（東京駅構内 1F）', '東京都', '千代田区', 'xn76ghk00', 35.6815, 139.7660, 
-    '{"wifi": true, "power": "all", "quiet": 5}', 1, 1
-),
--- --- 田端駅エリア ---
-(
-    'SRV_TABATA_101', NULL, 'free', 
-    NULL, 'user_manual', 
-    '☕ 田端ふれあいカフェ', '東京都北区田端1-1', '東京都', '北区', 'xn775v100', 35.7381, 139.7608, 
-    '{"wifi": false, "power": false}', 1, 1
-),
--- --- 小岩駅エリア (座標未確定の「種」) ---
-(
-    'SRV_KOIWA_201', NULL, 'free', 
-    NULL, 'user_manual', 
-    '☕ 小岩サンロード喫喫', '東京都江戸川区南小岩', '東京都', '江戸川区', NULL, NULL, NULL, 
-    '{"wifi": null, "power": null}', 0, 1
-);
+-- ⭐️削除(db/seed/areasで追加するため)
 
 -- 4. カテゴリ紐付け
-INSERT OR REPLACE INTO service_category_rel (service_id, category_id) VALUES 
-('SRV_MARUNOUCHI_001', 'cat_cafe'),
-('SRV_TOKYO_ST_002', 'cat_work'),
-('SRV_TABATA_101', 'cat_cafe'),
-('SRV_KOIWA_201', 'cat_cafe');
-
--- ※ 旧 5. カフェ詳細 (service_cafe_details) は廃止。データは上記 services.attributes_json へ移行済み。
+-- ⭐️削除(db/seed/areasで追加するため)
 
 -- 6. 予約可能枠 (Slots) 
-INSERT OR REPLACE INTO slots (
-    slot_id, service_id, start_at_unix, duration_minutes, booked_by, version
-) VALUES  
-('SLT_001', 'SRV_MARUNOUCHI_001', 1776654000, 60, NULL, 1),
-('SLT_002', 'SRV_MARUNOUCHI_001', 1776657600, 60, 'USER_TEST_GUEST', 2);
+-- ⭐️削除(db/seed/areasで追加するため)
 
 -- 7. 活動履歴
-INSERT OR REPLACE INTO user_activities (activity_id, user_id, service_id, favorited_at, personal_memo)
-VALUES 
-('ACT_001', 'USER_TEST_GUEST', 'SRV_MARUNOUCHI_001', CURRENT_TIMESTAMP, '丸の内の定番スポット。');
+-- ⭐️削除(db/seed/areasで追加するため)
 
 -- 8. 改善提案 (status_id=0: pending)
-INSERT OR REPLACE INTO service_proposals (proposal_id, service_id, user_id, field_name, proposed_value, status_id)
-VALUES
-('PROP_001', 'SRV_KOIWA_201', 'USER_TEST_GUEST', 'lat_lng', '35.7335, 139.8825', 0);
+-- ⭐️削除(db/seed/areasで追加するため)
