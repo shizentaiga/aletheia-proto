@@ -31,7 +31,7 @@ import { SearchHeader } from './components/SearchHeader'
 
 import { authApp, AUTH_CONFIG, getCurrentUser } from './lib/auth'
 // 修正点1: getAllAreaStats を追加インポート
-import { fetchCafesByContext, getAllAreaStats } from './db/queries'
+import { fetchCafesByContext, getAllAreaStats } from './db/cafe_queries'
 
 type Bindings = {
   ALETHEIA_PROTO_DB: D1Database
