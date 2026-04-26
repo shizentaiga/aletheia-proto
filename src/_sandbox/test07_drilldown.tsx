@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
 import { html } from 'hono/html'
 
-export const test00 = new Hono()
+export const test07 = new Hono()
 
-test00.get('/', (c) => {
+test07.get('/', (c) => {
   return c.html(html`
     <p>testです。</p>
   `)

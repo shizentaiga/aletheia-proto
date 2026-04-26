@@ -13,9 +13,9 @@ type Bindings = {
   RECRUIT_API_KEY: string
 }
 
-export const test07 = new Hono<{ Bindings: Bindings }>()
+export const test71 = new Hono<{ Bindings: Bindings }>()
 
-test07.get('/', async (c) => {
+test71.get('/', async (c) => {
   // 1. クエリパラメータの取得（未入力時はデフォルト値を設定）
   const keyword = c.req.query('keyword') || ''
   const address = c.req.query('address') || ''

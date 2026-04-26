@@ -21,7 +21,8 @@ import { test03 } from './test03_cafe'  // 機能試作（v1: 基礎検索）
 import { test04 } from './test04_address'
 import { test05 } from './test05_cdn'
 import { test06 } from './test06_next100'
-import { test07 } from './test07_hpg'
+import { test07 } from './test07_drilldown'
+import { test71 } from './test71_hpg'
 import { test81 } from './test81_cr'
 
 type Bindings = {
@@ -43,5 +44,6 @@ sandboxApp.route('/test04', test04)
 sandboxApp.route('/test05', test05)
 sandboxApp.route('/test06', test06)
 sandboxApp.route('/test07', test07)
+sandboxApp.route('/test71', test71)
 sandboxApp.route('/test81', test81)
 
