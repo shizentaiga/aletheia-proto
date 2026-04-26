@@ -1,20 +1,18 @@
 /**
 【全ページ共通のマスターテンプレート】
 各ページで c.render() が呼ばれると、この関数が自動的に実行されます。
-ヘッダーの読み込みや共通スタイルなどの「共通の土台」をここで一括管理し、
-引数の children をメインコンテンツとして埋め込みます。
 */
 
 /** @jsxImportSource hono/jsx */
 import { jsxRenderer } from 'hono/jsx-renderer'
 
-// サイト全体で共有する定数定義
+// --- サイト全体で共有する定数定義 ---
 const SITE_CONFIG = {
   SITE_NAME: 'ALETHEIA',
   LANG: 'ja',
 } as const
 
-// 全ページ共通の基本スタイル。各コンポーネントのスタイルと競合しないよう基本設定に留める
+// --- 全ページ共通の基本スタイル ---
 const GLOBAL_STYLES = `
   body { 
     margin: 0; 
@@ -24,10 +22,6 @@ const GLOBAL_STYLES = `
     color: #111;
   }
   * { box-sizing: border-box; }
-
-  /* * HTMX インジケーター制御
-   * リクエスト中（.htmx-request）のみ、対象要素の opacity を 1 にする
-   */
   .htmx-indicator {
     opacity: 0;
     transition: opacity 200ms ease-in;
@@ -42,8 +36,9 @@ const GLOBAL_STYLES = `
 
 /**
  * TypeScript 用の型拡張
- * c.render(content, { title: '...' }) のように、
- * 第2引数で title を渡せるように定義しています。
+ * 💡 修正ポイント: 
+ * 他のファイル（api_handlers.ts等）からインポートなしで型を認識させるため、
+ * declare module の記述を最適化しています。
  */
 declare module 'hono' {
   interface ContextRenderer {
@@ -52,7 +47,6 @@ declare module 'hono' {
 }
 
 export const renderer = jsxRenderer(({ children, title }) => {
-  // タイトルが指定されている場合は「ページ名 | サイト名」とする
   const pageTitle = title 
     ? `${title} | ${SITE_CONFIG.SITE_NAME}` 
     : SITE_CONFIG.SITE_NAME
@@ -63,28 +57,15 @@ export const renderer = jsxRenderer(({ children, title }) => {
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>{pageTitle}</title>
-        
-        {/* HTMX 本体の読み込み 
-          💡 注意: integrity 属性を外したことで、現在は SRI チェックなしで読み込まれます。
-          バージョンを変更する際は、公式のハッシュ値と一致させるか、このまま運用します。
-        */}
         <script 
           src="https://unpkg.com/htmx.org@1.9.12" 
           crossorigin="anonymous"
         ></script>
-
         <style>{GLOBAL_STYLES}</style>
       </head>
       <body>
-        {/* 各ページのメインコンテンツがここに入る */}
         {children}
-
-        {/* グローバル・ローディングインジケーター
-          💡 活用方法:
-          各コンポーネント内の HTMX 要素（button等）に 
-          hx-indicator="#loading-spinner" を付与すると、
-          通信中だけ画面右下に「読み込み中...」が表示されます。
-        */}
+        {/* グローバル・ローディングインジケーター */}
         <div id="loading-spinner" class="htmx-indicator" style={{
           position: 'fixed',
           bottom: '20px',
