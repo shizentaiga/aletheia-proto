@@ -17,11 +17,15 @@ import { renderer } from './renderer'
 import { Top, CafeList } from './pages/Top' 
 import { sandboxApp } from './_sandbox/_router'
 
-// コンポーネントおよび認証ライブラリのインポート
+// コンポーネント、認証、データアクセス、および共通ハンドラのインポート
 import { SearchHeader } from './components/SearchHeader'
 import { authApp, AUTH_CONFIG, getCurrentUser } from './lib/auth'
 import { fetchCafesByContext } from './db/cafe_queries' 
-import { handleAreaStats, getCloudflareLocation } from './api_handlers'
+import { 
+  handleAreaStats, 
+  getCloudflareLocation, 
+  getSearchParams 
+} from './api_handlers'
 
 /**
  * 共通バインディング定義（環境変数・D1 DB接続等）
@@ -38,42 +42,27 @@ const app = new Hono<{ Bindings: Bindings }>()
 /**
  * ミドルウェア / サブルーティングの登録
  */
-app.use('*', renderer)       // 全リクエストに共通のHTMLレンダラーを適用
-app.route('/', authApp)      // Google OAuth 認証関連のルーティングを統合
+app.use('*', renderer)             // 全リクエストに共通のHTMLレンダラーを適用
+app.route('/', authApp)            // Google OAuth 認証関連のルーティングを統合
 app.route('/_sandbox', sandboxApp) // 開発用サンドボックス（テスト機能）を統合
 
 /**
  * [GET] /
  * 役割：初期表示（フルレンダリング）
- * - 初回アクセス時やロゴクリックによるトップ帰還時に実行
- * - 位置情報の判定と、初期表示データの取得を行う
+ * - 初回アクセスやロゴクリック時に、位置情報に基づいた初期検索結果を表示
  */
 app.get('/', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
 
-  /**
-   * 1. インフラ層（Cloudflare）からの位置情報取得
-   * ハンドラ側に切り出した関数を呼び出し
-   */
+  // 1. 位置情報および検索パラメータの取得（外部ロジックに委譲）
   const locationInfo = getCloudflareLocation(c)
+  const { keyword, category, offset, region: queryRegion } = getSearchParams(c)
 
-  // 検索パラメータのパース
-  const keyword = c.req.query('keyword') || ''
-  const category = c.req.query('category') || ''
-  const offset = parseInt(c.req.query('offset') || '0', 10)
-
-  /**
-   * 2. エリア判定ロジック（肝）
-   * URLパラメータ（ユーザー指定）を最優先し、なければCFの位置情報を使用する
-   */
-  const queryRegion = c.req.query('region')
+  // 2. エリア判定（ユーザー指定を優先し、未指定なら位置情報を利用）
   const effectiveRegion = queryRegion || (locationInfo.region !== 'unknown' ? locationInfo.region : '')
 
-  /**
-   * 3. データの並列取得
-   * ユーザー情報と初期表示用のカフェリストを同時にフェッチして高速化を図る
-   */
+  // 3. データの並列取得（高速化のため、ユーザー情報とカフェデータを同時にフェッチ）
   const [user, cafeResult] = await Promise.all([
     getCurrentUser(db, sessionUserId),
     fetchCafesByContext(db, { 
@@ -103,22 +92,16 @@ app.get('/', async (c) => {
 /**
  * [GET] /search
  * 役割：検索の実行と部分更新（HTMX連携）
- * - フォーム送信時や「さらに読み込む」クリック時に呼ばれる
- * - HTMX経由ならHTMLの断片のみを返し、直接アクセスならフルページを返す（リロード対応）
+ * - フォーム送信時や追加読み込み時に呼ばれ、HTMX経由ならHTML断片のみを返却
  */
 app.get('/search', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
-  
-  // HTMXリクエストかどうかをヘッダーで判定
   const isHtmx = c.req.header('HX-Request') === 'true'
 
-  const keyword = c.req.query('keyword') || ''
-  const region = c.req.query('region') || ''
-  const category = c.req.query('category') || ''
-  const offset = parseInt(c.req.query('offset') || '0', 10)
-  const detectedRegion = c.req.query('detectedRegion') || ''
+  // 1. 検索パラメータの取得（外部ロジックに委譲）
+  const { keyword, region, category, offset, detectedRegion } = getSearchParams(c)
 
-  // 指定された条件でDBからカフェ情報をフェッチ
+  // 2. 指定された条件でDBから店舗情報をフェッチ
   const { cafes, totalCount } = await fetchCafesByContext(db, { 
     keyword, 
     offset,
@@ -126,10 +109,7 @@ app.get('/search', async (c) => {
     detectedRegion 
   })
 
-  /**
-   * 1. 非HTMXリクエスト（直URL叩き等）の場合
-   * 検索条件を保持した状態で Top ページをフルレンダリングする
-   */
+  // 3. 非HTMXリクエスト（直URLアクセス等）の場合：フルページを返却
   if (!isHtmx) {
     const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
     const user = await getCurrentUser(db, sessionUserId)
@@ -142,10 +122,7 @@ app.get('/search', async (c) => {
     )
   }
 
-  /**
-   * 2. HTMXリクエスト（最初の検索実行）の場合
-   * 検索ヒット件数（Header）と、最初のカードリスト（CafeList）を返す
-   */
+  // 4. HTMXリクエスト（初期検索）の場合：件数ヘッダーとリストのセットを返却
   if (offset === 0) {
     return c.html(
       <>
@@ -165,10 +142,7 @@ app.get('/search', async (c) => {
     )
   }
 
-  /**
-   * 3. HTMXリクエスト（無限スクロール / 追加読み込み）の場合
-   * 新しいカードの塊（CafeList）のみを返し、既存のリスト末尾へ追記される
-   */
+  // 5. HTMXリクエスト（無限スクロール等）の場合：リストの続きのみを返却
   return c.html(
     <CafeList 
       cafes={cafes} 
@@ -184,8 +158,7 @@ app.get('/search', async (c) => {
 
 /**
  * [GET] /api/area-stats
- * 役割：エリア別統計情報の配信
- * - クライアント側のドリルダウンメニューで使用する市区町村別の件数データをJSONで提供
+ * 役割：エリア別統計情報の配信（JSON）
  */
 app.get('/api/area-stats', handleAreaStats)
 

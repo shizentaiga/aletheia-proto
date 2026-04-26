@@ -1,15 +1,22 @@
 /**
- * APIハンドラおよびエンドポイントロジック
- * * フロントエンドからの非同期リクエスト（fetch）に対して、
- * データベースから取得したデータを JSON 形式でレスポンスします。
+ * =============================================================================
+ * 【 ALETHEIA - APIハンドラ / ユーティリティ・ロジック 】
+ * =============================================================================
+ * 役割：
+ * 1. フロントエンドからの非同期リクエストに対するデータ提供
+ * 2. Hono Context からのパラメータ抽出および整形
+ * 3. インフラ層（Cloudflare）に依存する情報のユーティリティ化
  * * 📁 File Path: src/api_handlers.ts
+ * =============================================================================
  */
+
 import { Context } from 'hono'
 import { getAllAreaStats } from './db/cafe_queries'
 
 /**
- * Cloudflareのコンテキストから位置情報を抽出するユーティリティ関数
- * (index.tsx からのロジック移動)
+ * Cloudflare のコンテキストから位置情報（地理的情報）を抽出する
+ * @param c - Hono Context
+ * @returns { region, city, colo }
  */
 export const getCloudflareLocation = (c: Context) => {
   // c.req.raw を unknown 経由でキャストして型安全にプロパティ参照
@@ -23,13 +30,26 @@ export const getCloudflareLocation = (c: Context) => {
 }
 
 /**
+ * リクエストのクエリパラメータから検索に必要な値を抽出し、型を整えて返す
+ * @param c - Hono Context
+ * @returns 検索パラメータオブジェクト
+ */
+export const getSearchParams = (c: Context) => {
+  return {
+    keyword: c.req.query('keyword') || '',
+    region: c.req.query('region') || '',
+    category: c.req.query('category') || '',
+    offset: parseInt(c.req.query('offset') || '0', 10),
+    detectedRegion: c.req.query('detectedRegion') || ''
+  }
+}
+
+/**
  * [GET] /api/area-stats
- * エリアごとの店舗統計データ（各市区町村に何件店舗があるか）を返すハンドラ
- * * @param c - Honoのコンテキスト。環境変数（DB接続など）やリクエスト情報が含まれます。
- * @returns 統計データを含む JSON レスポンス
+ * 市区町村ごとの店舗数統計データを JSON 形式で返却する
+ * @param c - Hono Context
  */
 export const handleAreaStats = async (c: Context) => {
-  // Cloudflare Workers の D1 データベースなどの環境変数を取得
   const db = c.env.ALETHEIA_PROTO_DB
   
   try {
@@ -42,14 +62,14 @@ export const handleAreaStats = async (c: Context) => {
       data: stats
     })
   } catch (e) {
-    // 失敗時：エラー内容をログに出力し、適切なステータスコードを返却
+    // 失敗時：エラーログを出力し、適切なステータスコードを返却
     console.error('Database fetch error:', e)
     return c.json(
       { 
         success: false, 
         message: 'Failed to fetch area stats' 
       }, 
-      500 // Internal Server Error
+      500
     )
   }
 }
