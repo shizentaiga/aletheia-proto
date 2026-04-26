@@ -2,20 +2,11 @@
  * =============================================================================
  * 【 ALETHEIA - システム・エントリーポイント / index.tsx 】
  * =============================================================================
- * 役割：ルーティングの定義、ミドルウェアの適用、各機能モジュールの接合。
- * 📁 File Path: src/index.tsx
- * * ■ フォルダ構造 (Directory Structure)
- * src/
- * ├── index.tsx         # 全体のルーティング・接合点（本ファイル）
- * ├── renderer.tsx      # 共通レイアウト・JSXレンダリング設定
- * ├── pages/            # 画面テンプレート (Top.tsx 等)
- * ├── lib/              # 共通ロジック・認証基盤 (auth.ts 等)
- * ├── db/               # D1関連 (schema, seed等)
- * └── _sandbox/         # 技術検証用プロトタイプ
- * * ■ 設計思想 (Design Philosophy)
- * 1. 俯瞰性の維持: プロトタイプ期は本ファイルで全体を管理し、開発速度を優先。
- * 2. 段階的移譲: 規模拡大に応じ、ロジックを pages/ や lib/ へ適切に配置。
- * 3. 資産化の構造: 整理されたフォルダ構成により、コードの資産価値を維持。
+ * 役割：
+ * 1. アプリケーションのルーティング（経路案内）定義
+ * 2. ミドルウェア（レンダラー等）の適用
+ * 3. 各機能モジュール（認証、API、管理画面等）の統合
+ * * 📁 File Path: src/index.tsx
  * =============================================================================
  */
 
@@ -26,13 +17,15 @@ import { renderer } from './renderer'
 import { Top, CafeList } from './pages/Top' 
 import { sandboxApp } from './_sandbox/_router'
 
-// UIパーツの部品化
+// コンポーネントおよび認証ライブラリのインポート
 import { SearchHeader } from './components/SearchHeader'
-
 import { authApp, AUTH_CONFIG, getCurrentUser } from './lib/auth'
-// 修正点1: getAllAreaStats を追加インポート
-import { fetchCafesByContext, getAllAreaStats } from './db/cafe_queries'
+import { fetchCafesByContext } from './db/cafe_queries' 
+import { handleAreaStats } from './api_handlers'
 
+/**
+ * 共通バインディング定義（環境変数・D1 DB接続等）
+ */
 type Bindings = {
   ALETHEIA_PROTO_DB: D1Database
   GOOGLE_CLIENT_ID: string
@@ -42,19 +35,27 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>()
 
-app.use('*', renderer)
-app.route('/', authApp)
-app.route('/_sandbox', sandboxApp)
+/**
+ * ミドルウェア / サブルーティングの登録
+ */
+app.use('*', renderer)       // 全リクエストに共通のHTMLレンダラーを適用
+app.route('/', authApp)      // Google OAuth 認証関連のルーティングを統合
+app.route('/_sandbox', sandboxApp) // 開発用サンドボックス（テスト機能）を統合
 
 /**
- * [GET] / : 初期表示（フルレンダリング）
- * ロゴクリック時や初回アクセス時に呼ばれる
+ * [GET] /
+ * 役割：初期表示（フルレンダリング）
+ * - 初回アクセス時やロゴクリックによるトップ帰還時に実行
+ * - 位置情報の判定と、初期表示データの取得を行う
  */
 app.get('/', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
 
-  // Cloudflareから位置情報を取得（型安全のため安全にキャスト）
+  /**
+   * 1. インフラ層（Cloudflare）からの位置情報取得
+   * デプロイ環境の地域（region）や都市（city）情報を取得し、初期検索のヒントにする
+   */
   const cf = (c.req.raw as any).cf
   const locationInfo = {
     region: cf?.region || 'unknown',
@@ -62,19 +63,22 @@ app.get('/', async (c) => {
     colo: cf?.colo || 'unknown'
   }
 
-  // クエリパラメータの取得（検索条件）
+  // 検索パラメータのパース
   const keyword = c.req.query('keyword') || ''
   const category = c.req.query('category') || ''
   const offset = parseInt(c.req.query('offset') || '0', 10)
 
-  // 【ロジックの肝】
-  // 1. URLパラメータに region があればそれを使用
-  // 2. なければ Cloudflare の位置情報を使用
+  /**
+   * 2. エリア判定ロジック（肝）
+   * URLパラメータ（ユーザー指定）を最優先し、なければCFの位置情報を使用する
+   */
   const queryRegion = c.req.query('region')
   const effectiveRegion = queryRegion || (locationInfo.region !== 'unknown' ? locationInfo.region : '')
 
-  // ユーザー情報とカフェ一覧を並列で取得
-  // effectiveRegion を渡すことで、初回から絞り込まれた結果を返す
+  /**
+   * 3. データの並列取得
+   * ユーザー情報と初期表示用のカフェリストを同時にフェッチして高速化を図る
+   */
   const [user, cafeResult] = await Promise.all([
     getCurrentUser(db, sessionUserId),
     fetchCafesByContext(db, { 
@@ -85,8 +89,7 @@ app.get('/', async (c) => {
     }) 
   ])
 
-  // ページ全体を表示
-  // region={effectiveRegion} を渡すことで、Top.tsx 内の JS 初期化関数にこの値が引き継がれる
+  // Topページ全体をサーバーサイドレンダリングして返却
   return c.render(
     <Top 
       user={user} 
@@ -103,22 +106,24 @@ app.get('/', async (c) => {
 })
 
 /**
- * [GET] /search : HTMXからのリクエスト（部分更新用）＋ リロード対策
+ * [GET] /search
+ * 役割：検索の実行と部分更新（HTMX連携）
+ * - フォーム送信時や「さらに読み込む」クリック時に呼ばれる
+ * - HTMX経由ならHTMLの断片のみを返し、直接アクセスならフルページを返す（リロード対応）
  */
 app.get('/search', async (c) => {
   const db = c.env.ALETHEIA_PROTO_DB
   
-  // HTMXリクエストか判定
+  // HTMXリクエストかどうかをヘッダーで判定
   const isHtmx = c.req.header('HX-Request') === 'true'
 
   const keyword = c.req.query('keyword') || ''
   const region = c.req.query('region') || ''
   const category = c.req.query('category') || ''
   const offset = parseInt(c.req.query('offset') || '0', 10)
-  
   const detectedRegion = c.req.query('detectedRegion') || ''
 
-  // 指定された条件でDBからカフェを検索
+  // 指定された条件でDBからカフェ情報をフェッチ
   const { cafes, totalCount } = await fetchCafesByContext(db, { 
     keyword, 
     offset,
@@ -126,7 +131,10 @@ app.get('/search', async (c) => {
     detectedRegion 
   })
 
-  // HTMX以外での直接アクセスの場合は Top をフルレンダリング（リロード対策）
+  /**
+   * 1. 非HTMXリクエスト（直URL叩き等）の場合
+   * 検索条件を保持した状態で Top ページをフルレンダリングする
+   */
   if (!isHtmx) {
     const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
     const user = await getCurrentUser(db, sessionUserId)
@@ -139,12 +147,14 @@ app.get('/search', async (c) => {
     )
   }
 
-  // HTMXレスポンス（検索結果エリアのみ更新）
+  /**
+   * 2. HTMXリクエスト（最初の検索実行）の場合
+   * 検索ヒット件数（Header）と、最初のカードリスト（CafeList）を返す
+   */
   if (offset === 0) {
     return c.html(
       <>
         <SearchHeader totalCount={totalCount} />
-        
         <div id="cafe-cards-root">
           <CafeList 
             cafes={cafes} 
@@ -160,7 +170,10 @@ app.get('/search', async (c) => {
     )
   }
 
-  // 「さらに読み込む」用
+  /**
+   * 3. HTMXリクエスト（無限スクロール / 追加読み込み）の場合
+   * 新しいカードの塊（CafeList）のみを返し、既存のリスト末尾へ追記される
+   */
   return c.html(
     <CafeList 
       cafes={cafes} 
@@ -175,21 +188,10 @@ app.get('/search', async (c) => {
 })
 
 /**
- * 修正点2: [GET] /api/area-stats エンドポイントの追加
- * 店舗が存在するエリアと件数の集計データを取得
+ * [GET] /api/area-stats
+ * 役割：エリア別統計情報の配信
+ * - クライアント側のドリルダウンメニューで使用する市区町村別の件数データをJSONで提供
  */
-app.get('/api/area-stats', async (c) => {
-  const db = c.env.ALETHEIA_PROTO_DB
-  
-  try {
-    const stats = await getAllAreaStats(db)
-    return c.json({
-      success: true,
-      data: stats
-    })
-  } catch (e) {
-    return c.json({ success: false, message: 'Failed to fetch area stats' }, 500)
-  }
-})
+app.get('/api/area-stats', handleAreaStats)
 
 export default app
