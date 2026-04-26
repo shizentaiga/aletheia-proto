@@ -1,7 +1,17 @@
+# =============================================================================
+#   [準備]  
+#     chmod +x ./src/db/apply_seeds.sh\ 
+#   [LOCAL]  
+#     ./src/db/apply_seeds.sh\  --local
+#   [REMOTE] ※ 本番環境への反映
+#     ./src/db/apply_seeds.sh\  --remote
+# ※ 環境上の制約により、コマンド実行時は末尾に \ と 半角スペース が必要です。
+# =============================================================================
+
 #!/bin/bash
 
 # =============================================================================
-# 【 CONFIGURATION - 初期設定（パス変更の際はこちらを修正） 】
+# 【 CONFIGURATION - 初期設定 】
 # =============================================================================
 DB_NAME="ALETHEIA_PROTO_DB"
 
@@ -14,21 +24,12 @@ SCHEMA_FILE="$DB_BASE_DIR/schema.sql"
 CORE_SEED="$SEED_BASE_DIR/_core.sql"
 DEV_SEED="$SEED_BASE_DIR/development.sql"
 
-# チェーン店データのディレクトリ（生成された starbucks.sql 等が格納される場所）
+# データディレクトリ
 CHAINS_DIR="$SEED_BASE_DIR/chains"
+AREAS_DIR="$SEED_BASE_DIR/areas"
 
 # =============================================================================
-# 【 ALETHEIA - Database Seeding Script (v1.7.0-Zen-Refined) 】
-# =============================================================================
-# 使い方: 
-#   [LOCAL]  
-#     chmod +x ./src/db/apply_seeds.sh\ 
-#     ./src/db/apply_seeds.sh\  --local
-#
-#   [REMOTE] ※ 本番環境への反映
-#     ./src/db/apply_seeds.sh\  --remote
-#
-# ※ 環境上の制約により、コマンド実行時は末尾に \ と 半角スペース が必要です。
+# 【 ALETHEIA - Database Seeding Script (v1.9.0-Area-Enabled) 】
 # =============================================================================
 
 # 1. 実行環境の判定
@@ -49,12 +50,11 @@ echo "🚀 Starting seeding for $DB_NAME ($TARGET)..."
 execute_sql() {
   local file=$1
   if [ ! -f "$file" ]; then
-    echo "⚠️  エラー: ファイル $file がありません。スキップします。"
+    echo "⚠️  情報: ファイル $file がありません。スキップします。"
     return 1
   fi
 
   echo "📄 Executing: $file"
-  # 環境制約に合わせてコマンド実行。--yesフラグで対話プロンプトをスキップ
   npx wrangler d1 execute $DB_NAME $TARGET --file="$file" --yes
   
   if [ $? -ne 0 ]; then
@@ -64,34 +64,41 @@ execute_sql() {
   return 0
 }
 
-# 3. 実行順序の定義（依存関係を厳守：Schema -> Core -> Development -> Chain）
+# 3. 実行順序の定義（依存関係を厳守）
 # -----------------------------------------------------------------------------
 
-# STEP 0: テーブルの初期化
+# STEP 0: スキーマ適用（テーブルの初期化・再構築）
 execute_sql "$SCHEMA_FILE"
 
-# STEP 1: 基盤データの投入（FOREIGN KEYの親側：Role, Plan, Categories等）
+# STEP 1: 基盤マスタの投入（Role, Plan, Status, Categories）
 execute_sql "$CORE_SEED"
 
-# STEP 2: 開発用/共通設定の投入（Sample Users, Transport Nodes等）
+# STEP 2: 開発用/共通サンプルの投入（Test Users, Transport Nodes）
 execute_sql "$DEV_SEED"
 
-# STEP 3: チェーン店データの投入（ディレクトリ内の全SQLを順次実行）
-# ※ starbucks.sql もこのディレクトリに含まれるため、一括して処理されます。
+# STEP 3: チェーン店データの投入（starbucks.sql 等）
 if [ -d "$CHAINS_DIR" ]; then
   echo "🏢 Processing chain data in $CHAINS_DIR..."
   for sql_file in "$CHAINS_DIR/"*.sql; do
-    # ファイルが存在しない場合のガード
+    [ -e "$sql_file" ] || continue
+    execute_sql "$sql_file"
+  done
+fi
+
+# STEP 4: エリア特化データの投入（koiwa.sql 等）
+if [ -d "$AREAS_DIR" ]; then
+  echo "📍 Processing area data in $AREAS_DIR..."
+  for sql_file in "$AREAS_DIR/"*.sql; do
     [ -e "$sql_file" ] || continue
     execute_sql "$sql_file"
   done
 else
-  echo "ℹ️  情報: ディレクトリ $CHAINS_DIR がありません。スキップします。"
+  echo "ℹ️  情報: ディレクトリ $AREAS_DIR がありません。必要に応じて作成してください。"
 fi
 
 # -----------------------------------------------------------------------------
 
 echo "✅ Seeding completed successfully for $DB_NAME ($TARGET)!"
 
-# 次回実行のための権限付与（環境制約に基づき \ と半角スペースを付与）
-chmod +x ./src/db/apply_seeds.sh\ 
+# 実行権限の保証（環境制約への配慮）
+chmod +x ./src/db/apply_seeds.sh\

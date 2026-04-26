@@ -32,7 +32,6 @@ PRAGMA foreign_keys = ON;
 DROP TABLE IF EXISTS proposal_supports;
 DROP TABLE IF EXISTS service_proposals;
 DROP TABLE IF EXISTS user_activities;
-DROP TABLE IF EXISTS service_cafe_details;
 DROP TABLE IF EXISTS service_category_rel;
 DROP TABLE IF EXISTS slots;
 DROP TABLE IF EXISTS services;
@@ -48,9 +47,10 @@ DROP TABLE IF EXISTS access_plans;
 -- 2. マスタ定義 & 権限設計
 -- =============================================================================
 
--- 【アクセスプラン】利用上限（クォータ）の定義。将来のサブスクリプション設計の土台。
+-- 【アクセスプラン】利用上限（クォータ）の定義。
+-- free (0円) / pro (330円) / biz (3300円) の3層構造を想定。
 CREATE TABLE access_plans (
-    plan_id           TEXT PRIMARY KEY,   -- 'free', 'pro' 等の識別子
+    plan_id           TEXT PRIMARY KEY,   -- 'free', 'pro', 'biz'
     display_name      TEXT NOT NULL,      -- ユーザー向け名称
     max_favorites     INTEGER DEFAULT 10, -- お気に入り登録可能な上限
     max_memo_length   INTEGER DEFAULT 60, -- メモの最大文字数
@@ -58,17 +58,18 @@ CREATE TABLE access_plans (
     created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
--- 【役割定義】システム内の権限区分 (0:USER, 1:ADMIN等)
+-- 【役割定義】システム内の権限区分 (0:USER, 1:ADMIN, 2:OWNER等)
 CREATE TABLE role_definitions (
     id   INTEGER PRIMARY KEY,
     name TEXT NOT NULL UNIQUE
 );
 
--- 【共通状態定義】「承認待ち」「有効」など、複数の文脈（Context）で状態値を共通管理。
+-- 【共通状態定義】文脈（Context）ごとに状態値を管理。
+-- PROPOSAL: PENDING, APPROVED, REJECTED / USER: ACTIVE, SUSPENDED 等
 CREATE TABLE status_definitions (
     id      INTEGER PRIMARY KEY,
-    context TEXT NOT NULL, -- 'PROPOSAL', 'USER' 等の利用先
-    name    TEXT NOT NULL  -- 'ACTIVE', 'PENDING' 等の状態名
+    context TEXT NOT NULL, 
+    name    TEXT NOT NULL  
 );
 
 -- =============================================================================
@@ -81,11 +82,11 @@ CREATE TABLE users (
     google_id      TEXT UNIQUE,        -- Google Auth 連携用ID
     email          TEXT UNIQUE,        -- 連絡用メールアドレス
     display_name   TEXT,               -- アプリ内の表示名
-    role_id        INTEGER DEFAULT 0 NOT NULL,   -- 権限レベル
-    status_id      INTEGER DEFAULT 0 NOT NULL,   -- 0:ACTIVE 等
+    role_id        INTEGER DEFAULT 0 NOT NULL,   -- 権限レベル(role_definitions.id)
+    status_id      INTEGER DEFAULT 10 NOT NULL,  -- 10:ACTIVE 等
     plan_id        TEXT DEFAULT 'free' NOT NULL, -- 紐づくアクセスプラン
     last_login_at  DATETIME,
-    deleted_at     DATETIME,           -- 退会日時（値があれば論理削除）
+    deleted_at     DATETIME,           -- 退会日時（論理削除）
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (plan_id) REFERENCES access_plans(plan_id) ON DELETE RESTRICT
 );
@@ -94,16 +95,16 @@ CREATE TABLE users (
 -- 4. 空間インデックス (交通・地域)
 -- =============================================================================
 
--- 【交通ノード】駅・バス停データ。店舗が「どの駅の近くか」を判定するための基準点。
+-- 【交通ノード】駅・バス停データ。空間検索の基準点。
 CREATE TABLE transport_nodes (
     node_id        TEXT PRIMARY KEY,
     name           TEXT NOT NULL,       -- 駅名等
     type           TEXT NOT NULL,       -- 'station', 'bus_stop'
     line_name      TEXT,                -- 路線名
-    geohash_9      TEXT NOT NULL,       -- 空間検索用ハッシュ（9桁精度）
+    geohash_9      TEXT NOT NULL,       -- 空間検索用ハッシュ
     lat            REAL NOT NULL,       -- 緯度
     lng            REAL NOT NULL,       -- 経度
-    address_prefix TEXT,                -- '東京都江戸川区' 等の地域プレフィックス
+    address_prefix TEXT,                -- '東京都江戸川区' 等
     created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -119,7 +120,7 @@ CREATE TABLE brands (
     official_url TEXT                  -- 公式サイトURL
 );
 
--- 【カテゴリ】店舗の種類定義 (例: カフェ, コワーキング)
+-- 【カテゴリ】店舗の種類定義 (例: cat_cafe, cat_work)
 CREATE TABLE categories (
     category_id  TEXT PRIMARY KEY,
     display_name TEXT NOT NULL
@@ -129,65 +130,55 @@ CREATE TABLE categories (
 -- 6. コアデータ (店舗・サービス)
 -- =============================================================================
 
--- 【サービス】ALETHEIAの主役。店舗の基本情報と、情報の信頼度を集中管理。
+-- 【サービス】地点情報のマスター。
 CREATE TABLE services (
     service_id         TEXT PRIMARY KEY,
-    brand_id           TEXT,               -- 所属ブランドID
-    owner_id           TEXT,               -- 施設管理者（BtoB連携用）
-    plan_id            TEXT DEFAULT 'free' NOT NULL, -- 店舗側の掲載プラン
-    
-    ext_place_id       TEXT,               -- Google Place ID等の外部ソースID
-    ext_source         TEXT,               -- データ取得元
-    
-    title              TEXT NOT NULL,      -- 店名
-    address            TEXT NOT NULL,      -- 住所フルテキスト
-    prefecture         TEXT,               -- 都道府県
-    city               TEXT,               -- 市区町村
-       
-    -- ジオロケーション（地図・近傍検索の核心）
-    geohash_9          TEXT,               -- 9桁ジオハッシュ
-    lat                REAL,               -- 緯度
-    lng                REAL,               -- 経度
-    
+    brand_id           TEXT,                -- 紐づくブランド
+    owner_id           TEXT,                -- 管理者(bizプランユーザー等)
+    plan_id            TEXT DEFAULT 'free' NOT NULL,
+
+    -- 外部連携・店名
+    ext_place_id       TEXT,                -- Google等外部ソースID
+    ext_source         TEXT,                -- データソース名
+    title              TEXT NOT NULL,       -- 店名
+
+    -- 住所・位置情報
+    address            TEXT NOT NULL,       -- フルテキスト(表示用)
+    prefecture         TEXT,                -- 都道府県(絞り込み用)
+    city               TEXT,                -- 市区町村(絞り込み用)
+    geohash_9          TEXT,                -- 空間検索用ハッシュ
+    lat                REAL,
+    lng                REAL,
+
     -- 🌟 設備・属性データ (拡張用JSON)
-    -- Wi-Fi、電源、子供対応等の動的なフラグを key-value で格納。
-    -- 例: {"wifi": true, "power": true, "kids": "welcomed"}
+    -- -------------------------------------------------------------------------
+    -- 役割：Wi-Fi、電源、禁煙、座席数、決済方法、営業時間等の詳細属性を保持。
+    -- 運用：スキーマ変更なしで動的な項目拡張を可能にする。
+    -- 例  ：{"wifi": true, "payment": ["PayPay"], "business_hours": {...}}
+    -- -------------------------------------------------------------------------
     attributes_json    TEXT DEFAULT '{}',
 
-    updated_by         TEXT,               -- 最終更新ユーザー
-    version            INTEGER DEFAULT 1,  -- 同時編集の競合防止用
-    verification_level INTEGER DEFAULT 0,  -- 信頼度 (0:未確認, 1:訪問済等)
-    
+    -- メタデータ
+    updated_by         TEXT,
+    version            INTEGER DEFAULT 1,
+    verification_level INTEGER DEFAULT 0,   -- 信頼度(0:未確認, 1:確認済)
     created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
-    deleted_at         DATETIME,           -- 論理削除用（時刻が入れば非表示）
-    
-    FOREIGN KEY (brand_id)   REFERENCES brands(brand_id)        ON DELETE SET NULL,
-    FOREIGN KEY (owner_id)   REFERENCES users(user_id)          ON DELETE CASCADE,
-    FOREIGN KEY (updated_by) REFERENCES users(user_id)          ON DELETE SET NULL,
-    FOREIGN KEY (plan_id)    REFERENCES access_plans(plan_id)   ON DELETE RESTRICT
+    deleted_at         DATETIME,            -- 論理削除用
+
+    FOREIGN KEY (brand_id)   REFERENCES brands(brand_id)   ON DELETE SET NULL,
+    FOREIGN KEY (owner_id)   REFERENCES users(user_id)     ON DELETE SET NULL,
+    FOREIGN KEY (updated_by) REFERENCES users(user_id)     ON DELETE SET NULL,
+    FOREIGN KEY (plan_id)    REFERENCES access_plans(plan_id) ON DELETE RESTRICT
 );
 
--- 【多対多紐付け】1店舗が複数のカテゴリ（例: カフェ ＋ 喫煙所）を持つための設計。
+-- 【サービス・カテゴリ関係】1店舗に複数の業態（カフェ兼ワークスペース等）を紐付け。
 CREATE TABLE service_category_rel (
     service_id  TEXT,
     category_id TEXT,
     PRIMARY KEY (service_id, category_id),
-    FOREIGN KEY (service_id)  REFERENCES services(service_id)  ON DELETE CASCADE,
+    FOREIGN KEY (service_id)  REFERENCES services(service_id)   ON DELETE CASCADE,
     FOREIGN KEY (category_id) REFERENCES categories(category_id) ON DELETE CASCADE
-);
-
--- =============================================================================
--- 7. カテゴリ別詳細情報
--- =============================================================================
-
--- 【カフェ詳細】カフェとしての基本設備。
-CREATE TABLE service_cafe_details (
-    service_id       TEXT PRIMARY KEY,
-    has_wifi         BOOLEAN DEFAULT FALSE,
-    has_power        BOOLEAN DEFAULT FALSE,
-    seating_capacity INTEGER,               -- 座席数
-    FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE
 );
 
 -- =============================================================================
@@ -204,7 +195,7 @@ CREATE TABLE user_activities (
     visited_at       DATETIME, -- 最終訪問日
     
     tentative_date   TEXT,     -- 「いつか行きたい」等の予定メモ
-    personal_memo    TEXT,     -- 自分専用メモ（最大60文字）
+    personal_memo    TEXT,     -- 自分専用メモ（上限はアクセスプランに依存）
     
     updated_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(user_id, service_id),
@@ -223,12 +214,12 @@ CREATE TABLE service_proposals (
     user_id          TEXT NOT NULL,     -- 提案者
     field_name       TEXT NOT NULL,     -- 項目名
     proposed_value   TEXT NOT NULL,     -- 修正案
-    status_id        INTEGER DEFAULT 0 NOT NULL, -- 0:承認待ち 等
+    status_id        INTEGER DEFAULT 0 NOT NULL, -- 0:PENDING 等
     resolved_by      TEXT,              -- 管理者による判断
     created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id)    REFERENCES users(user_id)       ON DELETE CASCADE,
-    FOREIGN KEY (resolved_by) REFERENCES users(user_id)      ON DELETE SET NULL
+    FOREIGN KEY (service_id) REFERENCES services(service_id)   ON DELETE CASCADE,
+    FOREIGN KEY (user_id)    REFERENCES users(user_id)         ON DELETE CASCADE,
+    FOREIGN KEY (resolved_by) REFERENCES users(user_id)        ON DELETE SET NULL
 );
 
 -- 【提案支持】他のユーザーによる「その情報は正しい」という裏付け。
@@ -238,33 +229,33 @@ CREATE TABLE proposal_supports (
     created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (proposal_id, user_id),
     FOREIGN KEY (proposal_id) REFERENCES service_proposals(proposal_id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id)      REFERENCES users(user_id)       ON DELETE CASCADE
+    FOREIGN KEY (user_id)      REFERENCES users(user_id)                ON DELETE CASCADE
 );
 
 -- =============================================================================
 -- 10. 予約・マッチング (将来拡張用)
 -- =============================================================================
 
--- 【スロット】時間枠の予約。将来的なBtoB機能のコア。
+-- 【スロット】時間枠の予約。
 CREATE TABLE slots (
     slot_id          TEXT PRIMARY KEY,
     service_id       TEXT NOT NULL,
     start_at_unix    INTEGER NOT NULL,   -- UNIX時間（ソート・計算用）
     duration_minutes INTEGER DEFAULT 60, -- 枠の長さ
-    booked_by        TEXT,               -- 予約者（NULLは空き）
+    booked_by        TEXT,               -- 予約者
     version          INTEGER DEFAULT 1,
     created_at       DATETIME DEFAULT CURRENT_TIMESTAMP,
     
     UNIQUE(service_id, start_at_unix),
     FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE CASCADE,
-    FOREIGN KEY (booked_by)  REFERENCES users(user_id)      ON DELETE RESTRICT
+    FOREIGN KEY (booked_by)  REFERENCES users(user_id)       ON DELETE RESTRICT
 );
 
 -- =============================================================================
 -- 11. パフォーマンス・インデックス (検索最適化)
 -- =============================================================================
 
--- 空間検索（ジオハッシュ）を最速化。論理削除済みは除外してインデックスサイズを節約。
+-- 空間検索（ジオハッシュ）を最速化。論理削除済みは除外。
 CREATE INDEX idx_services_geo ON services(geohash_9) WHERE deleted_at IS NULL;
 CREATE INDEX idx_services_brand_geo ON services(brand_id, geohash_9) WHERE deleted_at IS NULL;
 
