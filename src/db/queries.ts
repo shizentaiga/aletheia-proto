@@ -18,19 +18,13 @@
 
 import { getPrefectureName, JP_REGIONS } from '../lib/constants';
 
-// -----------------------------------------------------------------------------
-// 1. 定数管理 (Config)
-// -----------------------------------------------------------------------------
+// =============================================================================
+// 1. 型定義 (Interfaces)
+// =============================================================================
 
 /**
- * 一覧表示における最大取得件数 (1ページあたりの件数)
+ * カフェ情報の基本構造
  */
-export const DISPLAY_LIMIT = 30;
-
-// -----------------------------------------------------------------------------
-// 2. 型定義 (Interfaces)
-// -----------------------------------------------------------------------------
-
 export interface Cafe {
   service_id: string;
   title: string;
@@ -39,33 +33,57 @@ export interface Cafe {
   city: string | null;
 }
 
+/**
+ * 特定の地域単位（都道府県または市区町村）の集計データ
+ */
 export interface RegionStat {
   name: string;
   count: number;
 }
 
+/**
+ * 全エリア（都道府県×市区町村）の集計データ
+ */
+export interface AreaStat {
+  prefecture: string;
+  city: string;
+  count: number;
+}
+
+/**
+ * 検索リクエストに対するレスポンス構造
+ */
 export interface FetchCafesResponse {
   cafes: Cafe[];
   totalCount: number;
-  offset: number; // 現在のオフセット値を返す
+  offset: number;
 }
 
-// -----------------------------------------------------------------------------
-// 3. Repository 関数群
-// -----------------------------------------------------------------------------
+// =============================================================================
+// 2. 定数管理 (Config)
+// =============================================================================
+
+/**
+ * 一覧表示における最大取得件数 (1ページあたりの件数)
+ */
+export const DISPLAY_LIMIT = 30;
+
+// =============================================================================
+// 3. Repository 関数群 (Data Access)
+// =============================================================================
 
 /**
  * 3-1. カフェ一覧・検索取得 (fetchCafesByContext)
- * 地方指定、都道府県・市区町村、キーワード検索を統合して処理。
- * ユーザーが明示的に地域を指定していない場合は現在地を優先ソートします。
+ * * 地方、都道府県・市区町村、キーワード検索を統合して処理。
+ * 地域指定がない場合は、現在地（detectedRegion）を考慮したソートを行います。
  */
 export async function fetchCafesByContext(
   db: D1Database,
   options: { 
-    region?: string;         // ユーザーが選択した絞り込み（kanto, 東京都, shibuya-ku等）
-    detectedRegion?: string; // 現在地ヒント（Tokyo, Osaka等の生データ想定）
-    keyword?: string; 
-    offset?: number 
+    region?: string;         // ユーザー選択：地方(kanto), 都道府県(東京都), 市区町村(渋谷区)
+    detectedRegion?: string; // システム検知：現在地ヒント (Tokyo 等)
+    keyword?: string;        // 検索窓：キーワード
+    offset?: number;
   } = {}
 ): Promise<FetchCafesResponse> {
   const { region, detectedRegion, keyword, offset = 0 } = options;
@@ -73,18 +91,17 @@ export async function fetchCafesByContext(
   let whereClauses: string[] = ["deleted_at IS NULL"];
   let whereParams: any[] = [];
 
-  // --- 1. 地域フィルタの構築 (絞り込み) ---
+  // --- A. 地域フィルタ (絞り込み) ---
   if (region) {
     const regionPrefectures = JP_REGIONS[region];
 
     if (regionPrefectures) {
-      // 地方検索の場合（kanto等）：所属する全県をIN句で指定
+      // 地方指定 (例: kanto) の場合
       const placeholders = regionPrefectures.map(() => "?").join(", ");
       whereClauses.push(`prefecture IN (${placeholders})`);
       whereParams.push(...regionPrefectures);
     } else {
-      // 個別の都道府県名・市区町村名での検索
-      // constants.ts の変換関数を通し、英語名("Tokyo")でも日本語名に正規化
+      // 個別地域 (都道府県・市区町村) の場合
       const mappedPref = getPrefectureName(region);
       const targetValue = mappedPref || region;
       
@@ -93,13 +110,10 @@ export async function fetchCafesByContext(
     }
   }
 
-// --- 2. キーワード検索 (複合ワード対応) ---
+  // --- B. キーワード検索 (複合語対応) ---
   if (keyword) {
-    // 全角・半角スペースで分割し、空の要素を除外
     const keywords = keyword.split(/[\s\u3000]+/).filter(Boolean);
-    
     keywords.forEach(kw => {
-      // 各単語が title または address のいずれかに含まれる (AND条件で蓄積)
       whereClauses.push("(title LIKE ? OR address LIKE ?)");
       whereParams.push(`%${kw}%`, `%${kw}%`);
     });
@@ -107,13 +121,12 @@ export async function fetchCafesByContext(
 
   const whereSql = `WHERE ${whereClauses.join(" AND ")}`;
   
-  // --- 3. ソート順の構築 ---
+  // --- C. ソート順の構築 ---
   let sortClause = "created_at DESC";
   let sortParams: any[] = [];
 
-  // 明示的な地域選択がない場合、現在地（detectedRegion）を最優先にする
+  // 地域未選択かつ現在地検知がある場合、当該地域を優先表示
   if (!region && detectedRegion) {
-    // 🌟 重要: 生の現在地("Tokyo")を日本語("東京都")に変換してクエリに使用
     const jpnDetectedRegion = getPrefectureName(detectedRegion);
     if (jpnDetectedRegion) {
       sortClause = `CASE WHEN prefecture = ? THEN 0 ELSE 1 END, created_at DESC`;
@@ -121,7 +134,7 @@ export async function fetchCafesByContext(
     }
   }
 
-  // --- 4. クエリ実行 ---
+  // --- D. クエリ実行 ---
   const dataQuery = `
     SELECT service_id, title, address, prefecture, city
     FROM services
@@ -132,7 +145,7 @@ export async function fetchCafesByContext(
 
   const countQuery = `SELECT COUNT(*) as total FROM services ${whereSql}`;
 
-  // bind順: [ソート用パラメータ, WHERE句用パラメータ, LIMIT, OFFSET](⭐️順序の誤りを修正。)
+  // bind順の整合性確保：WHERE句パラメータ -> ソート用パラメータ(CASE句) -> LIMIT/OFFSET
   const [dataResult, countResult] = await db.batch([
     db.prepare(dataQuery).bind(...whereParams, ...sortParams, DISPLAY_LIMIT, offset),
     db.prepare(countQuery).bind(...whereParams),
@@ -146,7 +159,8 @@ export async function fetchCafesByContext(
 }
 
 /**
- * 3-2. 都道府県別・集計取得
+ * 3-2. 都道府県別・店舗数集計
+ * 各都道府県ごとの有効な店舗数を取得します。
  */
 export async function getRegionStats(db: D1Database): Promise<RegionStat[]> {
   const query = `
@@ -162,7 +176,8 @@ export async function getRegionStats(db: D1Database): Promise<RegionStat[]> {
 }
 
 /**
- * 3-3. 市区町村別・集計取得
+ * 3-3. 市区町村別・店舗数集計
+ * 特定の都道府県内における、市区町村別の有効店舗数を取得します。
  */
 export async function getCityStats(
   db: D1Database,
@@ -178,4 +193,27 @@ export async function getCityStats(
   `;
   const { results } = await db.prepare(query).bind(prefecture, DISPLAY_LIMIT).all();
   return results as unknown as RegionStat[];
+}
+
+/**
+ * 3-4. 全エリア別・店舗数集計 (getAllAreaStats)
+ * 都道府県と市区町村のペアで集計し、店舗が存在するエリアのみを一覧化します。
+ * フロントエンドでの動的な検索メニュー構築等に使用します。
+ */
+export async function getAllAreaStats(db: D1Database): Promise<AreaStat[]> {
+  const query = `
+    SELECT 
+      prefecture, 
+      city, 
+      COUNT(*) as count
+    FROM services
+    WHERE deleted_at IS NULL 
+      AND prefecture IS NOT NULL 
+      AND city IS NOT NULL
+    GROUP BY prefecture, city
+    ORDER BY prefecture ASC, count DESC
+  `;
+  
+  const { results } = await db.prepare(query).all();
+  return results as unknown as AreaStat[];
 }

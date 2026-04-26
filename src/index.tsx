@@ -30,7 +30,8 @@ import { sandboxApp } from './_sandbox/_router'
 import { SearchHeader } from './components/SearchHeader'
 
 import { authApp, AUTH_CONFIG, getCurrentUser } from './lib/auth'
-import { fetchCafesByContext } from './db/queries'
+// 修正点1: getAllAreaStats を追加インポート
+import { fetchCafesByContext, getAllAreaStats } from './db/queries'
 
 type Bindings = {
   ALETHEIA_PROTO_DB: D1Database
@@ -171,6 +172,24 @@ app.get('/search', async (c) => {
       detectedRegion={detectedRegion}
     />
   )
+})
+
+/**
+ * 修正点2: [GET] /api/area-stats エンドポイントの追加
+ * 店舗が存在するエリアと件数の集計データを取得
+ */
+app.get('/api/area-stats', async (c) => {
+  const db = c.env.ALETHEIA_PROTO_DB
+  
+  try {
+    const stats = await getAllAreaStats(db)
+    return c.json({
+      success: true,
+      data: stats
+    })
+  } catch (e) {
+    return c.json({ success: false, message: 'Failed to fetch area stats' }, 500)
+  }
 })
 
 export default app
