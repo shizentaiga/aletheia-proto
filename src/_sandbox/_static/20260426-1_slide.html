@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ALETHEIA Drilldown Final Prototype</title>
+    <style>
+        :root {
+            --ios-blue: #007AFF;
+            --ios-gray: #8e8e93;
+            --bg-gray: #f2f2f7;
+            --border: #e5e5ea;
+            /* 改善④：アニメーションの質（cubic-bezier）とopacityの追加 */
+            --transition: transform 0.25s cubic-bezier(0.33, 1, 0.68, 1), opacity 0.2s ease;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Kaku Gothic ProN", sans-serif;
+            margin: 0;
+            background-color: #1c1c1e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #000;
+        }
+
+        .phone-frame {
+            width: 375px;
+            height: 667px;
+            background: white;
+            position: relative;
+            overflow: hidden;
+            border-radius: 32px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+
+        .main-view {
+            padding: 20px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            height: 100%;
+        }
+
+        .trigger-btn {
+            padding: 16px 24px;
+            background: var(--ios-blue);
+            color: white;
+            border: none;
+            border-radius: 14px;
+            font-size: 17px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .trigger-btn:active { opacity: 0.7; }
+
+        /* ドリルダウンのコンテナ */
+        #drilldown-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 100;
+            transform: translateX(100%);
+            transition: var(--transition);
+            display: flex;
+            flex-direction: column;
+        }
+        #drilldown-overlay.open { transform: translateX(0); }
+
+        /* 改善④：レイヤーの奥行きと透明度 */
+        .layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            transition: var(--transition);
+            display: flex;
+            flex-direction: column;
+            z-index: 1;
+        }
+        .layer.hidden-left {
+            transform: translateX(-20%);
+            opacity: 0.7;
+        }
+        .layer.off-right { transform: translateX(100%); }
+
+        /* 改善①⑥：ヘッダー・ナビの強化 */
+        .nav-header {
+            height: 54px; /* 少し高めに確保 */
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+            border-bottom: 0.5px solid var(--border);
+            background: #fff;
+            flex-shrink: 0;
+        }
+
+        .nav-left, .nav-right {
+            min-width: 70px;
+            display: flex;
+            align-items: center;
+        }
+
+        .nav-center {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* 改善①：パンくず/現在地の可視化 */
+        .nav-breadcrumb {
+            font-size: 11px;
+            color: var(--ios-gray);
+            text-transform: uppercase;
+            white-space: nowrap;
+            margin-bottom: 1px;
+        }
+        .nav-title {
+            font-weight: 600;
+            font-size: 16px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+            text-align: center;
+        }
+
+        .back-link {
+            color: var(--ios-blue);
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            padding: 8px;
+        }
+        .back-link::before {
+            content: "";
+            width: 10px; height: 10px;
+            border-left: 2.5px solid var(--ios-blue);
+            border-bottom: 2.5px solid var(--ios-blue);
+            transform: rotate(45deg);
+            margin-right: 4px;
+        }
+
+        .close-link {
+            color: var(--ios-blue);
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 8px;
+            margin-left: auto;
+        }
+
+        /* 改善②⑦：タップ領域とスクロール */
+        .menu-list {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            scroll-behavior: smooth;
+        }
+
+        .list-item {
+            padding: 14px 16px; /* 改善②：48px以上の確保 */
+            min-height: 48px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 0.5px solid var(--border);
+            cursor: pointer;
+            box-sizing: border-box;
+            transition: background-color 0.1s;
+        }
+        .list-item:active { background-color: var(--bg-gray); }
+
+        .list-label { font-size: 17px; }
+
+        /* 改善③：選択フィードバック */
+        .list-item.selected .list-label {
+            color: var(--ios-blue);
+            font-weight: 600;
+        }
+
+        /* 改善⑤：すべて選択の自然さ */
+        .all-selection-label {
+            color: var(--ios-blue);
+            font-weight: 600;
+        }
+
+        .chevron { color: #c7c7cc; font-size: 14px; margin-left: 8px; }
+    </style>
+</head>
+<body>
+
+    <div class="phone-frame">
+        <div class="main-view">
+            <h2 style="font-weight: 800;">ALETHEIA</h2>
+            <button class="trigger-btn" onclick="openDrilldown()">エリアから探す</button>
+            <p id="result-display" style="margin-top: 24px; font-weight: 600; color: var(--ios-blue);"></p>
+        </div>
+
+        <div id="drilldown-overlay"></div>
+    </div>
+
+    <script>
+        const DATA = {
+            title: "エリア",
+            options: [
+                { label: "関東", value: "kantou", sub: [
+                    { label: "東京都", value: "tokyo", sub: ["新宿区", "渋谷区", "杉並区", "中央区"] },
+                    { label: "神奈川県", value: "kanagawa", sub: ["横浜市", "川崎市", "鎌倉市"] }
+                ]},
+                { label: "関西", value: "kansai", sub: [
+                    { label: "大阪府", value: "osaka", sub: ["北区", "中央区", "西区"] }
+                ]}
+            ]
+        };
+
+        let stack = [];
+        let currentSelectedValue = null; // 改善③：選択状態保持
+
+        function openDrilldown() {
+            document.getElementById('drilldown-overlay').classList.add('open');
+            renderLayer(DATA.options, "エリア", null);
+        }
+
+        function closeDrilldown() {
+            document.getElementById('drilldown-overlay').classList.remove('open');
+            setTimeout(() => {
+                document.getElementById('drilldown-overlay').innerHTML = '';
+                stack = [];
+            }, 300);
+        }
+
+        function renderLayer(items, title, parentLabel) {
+            const container = document.getElementById('drilldown-overlay');
+            const currentLayers = container.querySelectorAll('.layer');
+            currentLayers.forEach(l => l.classList.add('hidden-left'));
+
+            const layer = document.createElement('div');
+            layer.className = 'layer off-right';
+            
+            // 改善①：パンくずの構築
+            const breadcrumb = stack.map(s => s.title).join(' / ');
+
+            let html = `
+                <div class="nav-header">
+                    <div class="nav-left">
+                        ${parentLabel ? `<span class="back-link" onclick="goBack()">${parentLabel}</span>` : ''}
+                    </div>
+                    <div class="nav-center">
+                        ${breadcrumb ? `<div class="nav-breadcrumb">${breadcrumb}</div>` : ''}
+                        <div class="nav-title">${title}</div>
+                    </div>
+                    <div class="nav-right">
+                        ${!parentLabel ? `<span class="close-link" onclick="closeDrilldown()">閉じる</span>` : ''}
+                    </div>
+                </div>
+                <div class="menu-list">
+                    ${parentLabel ? `
+                        <div class="list-item" onclick="finalize('${title}（全域）')">
+                            <span class="list-label all-selection-label">${title}（全域）</span>
+                        </div>
+                    ` : ''}
+                    ${items.map(item => {
+                        const label = typeof item === 'string' ? item : item.label;
+                        const hasSub = item.sub && item.sub.length > 0;
+                        const isSelected = currentSelectedValue === label; // 改善③
+                        return `
+                            <div class="list-item ${isSelected ? 'selected' : ''}" onclick="handleSelect('${label}', ${hasSub}, '${title}')">
+                                <span class="list-label">${label}</span>
+                                ${hasSub ? '<span class="chevron">▶</span>' : ''}
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+            
+            layer.innerHTML = html;
+            container.appendChild(layer);
+            setTimeout(() => layer.classList.remove('off-right'), 10);
+            stack.push({ items, title, parentLabel, element: layer });
+        }
+
+        function handleSelect(label, hasSub, currentTitle) {
+            if (hasSub) {
+                const currentState = stack[stack.length - 1];
+                const selectedItem = currentState.items.find(i => i.label === label);
+                renderLayer(selectedItem.sub, label, currentTitle);
+            } else {
+                currentSelectedValue = label; // 改善③：選択を記録
+                finalize(label);
+            }
+        }
+
+        function goBack() {
+            if (stack.length <= 1) return;
+            const current = stack.pop();
+            current.element.classList.add('off-right');
+            const previous = stack[stack.length - 1];
+            previous.element.classList.remove('hidden-left');
+            setTimeout(() => current.element.remove(), 250);
+        }
+
+        function finalize(value) {
+            document.getElementById('result-display').innerText = "📍 " + value;
+            // 視覚的フィードバックを少し見せてから閉じる
+            setTimeout(closeDrilldown, 150);
+        }
+    </script>
+</body>
+</html>
