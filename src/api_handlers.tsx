@@ -3,9 +3,9 @@
  * 【 ALETHEIA - APIハンドラ / ユーティリティ・ロジック 】
  * =============================================================================
  * 役割：
- * 1. フロントエンドからの非同期リクエストに対するデータ提供
+ * 1. エンドポイントごとのビジネスロジック（ハンドラ）の実行
  * 2. Hono Context からのパラメータ抽出および整形
- * 3. 検索結果の表示ロジック（フルレンダリング / HTMX部分更新）の集約
+ * 3. 検索結果の表示（フルレンダリング / HTMX部分更新）の判定と出力
  * * 📁 File Path: src/api_handlers.tsx
  * =============================================================================
  */
@@ -35,7 +35,7 @@ export const getCloudflareLocation = (c: Context) => {
 }
 
 /**
- * リクエストのクエリパラメータから検索に必要な値を抽出し、型を整えて返す
+ * URLクエリから検索条件を抽出し、適切な型に整形して返す
  * @param c - Hono Context
  * @returns 検索パラメータオブジェクト
  */
@@ -50,8 +50,113 @@ export const getSearchParams = (c: Context) => {
 }
 
 /**
+ * [GET] /
+ * トップページの初期表示ハンドラ
+ * @param c - Hono Context
+ */
+export const handleTopPage = async (c: Context) => {
+  const db = c.env.ALETHEIA_PROTO_DB
+  const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
+
+  // 1. 位置情報および検索パラメータの取得
+  const locationInfo = getCloudflareLocation(c)
+  const { keyword, category, offset, region: queryRegion } = getSearchParams(c)
+
+  // 2. エリア判定（指定がなければインフラ層の情報を利用）
+  const effectiveRegion = queryRegion || (locationInfo.region !== 'unknown' ? locationInfo.region : '')
+
+  // 3. データの並列取得（ユーザーとカフェ情報を同時フェッチ）
+  const [user, cafeResult] = await Promise.all([
+    getCurrentUser(db, sessionUserId),
+    fetchCafesByContext(db, { 
+      keyword, 
+      region: effectiveRegion, 
+      offset, 
+      detectedRegion: locationInfo.region 
+    }) 
+  ])
+
+  // レンダリング結果を返却
+  return c.render(
+    <Top 
+      user={user} 
+      env={c.env} 
+      cafes={cafeResult.cafes} 
+      totalCount={cafeResult.totalCount}
+      location={locationInfo}
+      keyword={keyword}
+      region={effectiveRegion} 
+      category={category}
+    />, 
+    { title: 'メインポータル' }
+  )
+}
+
+/**
+ * 検索結果の表示ロジック（フルページ / HTMX部分更新）を判定して返す
+ * @param c - Hono Context
+ * @param params - 抽出された検索パラメータ
+ * @param results - DBからの検索結果
+ */
+export const renderCafeSearchResults = async (
+  c: Context, 
+  params: ReturnType<typeof getSearchParams>,
+  results: Awaited<ReturnType<typeof fetchCafesByContext>>
+) => {
+  const isHtmx = c.req.header('HX-Request') === 'true'
+  const { keyword, region, category, offset, detectedRegion } = params
+  const { cafes, totalCount } = results
+
+  // 1. 非HTMXリクエストの場合：フルページを返却
+  if (!isHtmx) {
+    const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
+    const user = await getCurrentUser(c.env.ALETHEIA_PROTO_DB, sessionUserId)
+    return c.render(
+      <Top 
+        user={user} env={c.env} cafes={cafes} totalCount={totalCount}
+        keyword={keyword} region={region} category={category}
+      />,
+      { title: '検索結果' }
+    )
+  }
+
+  // 2. HTMXリクエスト（初期検索）の場合：件数ヘッダーとリストを返却
+  if (offset === 0) {
+    return c.html(
+      <>
+        <SearchHeader totalCount={totalCount} />
+        <div id="cafe-cards-root">
+          <CafeList 
+            cafes={cafes} 
+            totalCount={totalCount} 
+            offset={offset} 
+            keyword={keyword} 
+            region={region}
+            category={category}
+            detectedRegion={detectedRegion}
+          />
+        </div>
+      </>
+    )
+  }
+
+  // 3. HTMXリクエスト（追加読み込み）の場合：リスト断片のみを返却
+  return c.html(
+    <CafeList 
+      cafes={cafes} 
+      totalCount={totalCount} 
+      offset={offset} 
+      keyword={keyword} 
+      region={region}
+      category={category}
+      detectedRegion={detectedRegion}
+    />
+  )
+}
+
+/**
  * [GET] /api/area-stats
- * 市区町村ごとの店舗数統計データを JSON 形式で返却する
+ * 市区町村ごとの店舗数統計データを JSON で返却するハンドラ
  * @param c - Hono Context
  */
 export const handleAreaStats = async (c: Context) => {
@@ -73,67 +178,4 @@ export const handleAreaStats = async (c: Context) => {
       500
     )
   }
-}
-
-/**
- * 検索結果のレンダリング（フルページ / HTMX部分更新）を判定して返す
- * @param c - Hono Context
- * @param params - getSearchParams の戻り値
- * @param results - fetchCafesByContext の戻り値
- * @returns レンダリングされた HTML レスポンス
- */
-export const renderCafeSearchResults = async (
-  c: Context, 
-  params: ReturnType<typeof getSearchParams>,
-  results: Awaited<ReturnType<typeof fetchCafesByContext>>
-) => {
-  const isHtmx = c.req.header('HX-Request') === 'true'
-  const { keyword, region, category, offset, detectedRegion } = params
-  const { cafes, totalCount } = results
-
-  // 1. 非HTMXリクエスト（直URLアクセス等）の場合：フルページを返却
-  if (!isHtmx) {
-    const sessionUserId = getCookie(c, AUTH_CONFIG.SESSION_COOKIE)
-    const user = await getCurrentUser(c.env.ALETHEIA_PROTO_DB, sessionUserId)
-    return c.render(
-      <Top 
-        user={user} env={c.env} cafes={cafes} totalCount={totalCount}
-        keyword={keyword} region={region} category={category}
-      />,
-      { title: '検索結果' }
-    )
-  }
-
-  // 2. HTMXリクエスト（初期検索）の場合：件数ヘッダーとリストのセットを返却
-  if (offset === 0) {
-    return c.html(
-      <>
-        <SearchHeader totalCount={totalCount} />
-        <div id="cafe-cards-root">
-          <CafeList 
-            cafes={cafes} 
-            totalCount={totalCount} 
-            offset={offset} 
-            keyword={keyword} 
-            region={region}
-            category={category}
-            detectedRegion={detectedRegion}
-          />
-        </div>
-      </>
-    )
-  }
-
-  // 3. HTMXリクエスト（追加読み込み / 無限スクロール）の場合：リストの断片のみを返却
-  return c.html(
-    <CafeList 
-      cafes={cafes} 
-      totalCount={totalCount} 
-      offset={offset} 
-      keyword={keyword} 
-      region={region}
-      category={category}
-      detectedRegion={detectedRegion}
-    />
-  )
 }
