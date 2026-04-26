@@ -9,7 +9,7 @@
 
 /** @jsxImportSource hono/jsx */
 import { STYLES, SPACE } from '../styles/theme'
-import type { Cafe } from '../db/queries'
+import type { Cafe } from '../db/cafe_queries'
 
 // サブ・コンポーネント
 import { DebugMonitor } from '../components/DebugMonitor'
