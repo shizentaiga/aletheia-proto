@@ -3,12 +3,12 @@
  * 【 ALETHEIA - 検索セクション / SearchSection.tsx 】
  * =============================================================================
  * 役割：エリアコンテキスト（地域・主要駅チップ）と、自由検索キーワードの提供。
- * 📁 File Path: src/components/SearchSection.tsx
+ * 📁 File Path: src/components/TopSearch.tsx
  * =============================================================================
  */
 
 /** @jsxImportSource hono/jsx */
-import { STYLES, SPACE } from '../styles/theme'
+import { STYLES, SPACE } from '../../styles/theme'
 
 const SEARCH_DESIGN = {
   SEARCH_ICON_BTN: {

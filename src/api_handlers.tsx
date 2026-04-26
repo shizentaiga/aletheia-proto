@@ -14,7 +14,7 @@
 import { Context } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { getAllAreaStats, fetchCafesByContext } from './db/cafe_queries'
-import { Top, CafeList } from './pages/Top' 
+import { Top, CafeList } from './pages/Top/TopPage' 
 import { SearchHeader } from './components/SearchHeader'
 import { AUTH_CONFIG, getCurrentUser } from './lib/auth'
 

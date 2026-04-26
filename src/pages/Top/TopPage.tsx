@@ -3,23 +3,23 @@
  * 【 ALETHEIA - メインポータル・ビュー / Top.tsx 】
  * =============================================================================
  * 役割：実データ（店名・住所）に基づき、ノイズを排したリストを構築します。
- * 📁 File Path: src/pages/Top.tsx
+ * 📁 File Path: src/pages/TopPage.tsx
  * =============================================================================
  */
 
 /** @jsxImportSource hono/jsx */
-import { STYLES, SPACE } from '../styles/theme'
-import type { Cafe } from '../db/cafe_queries'
+import { STYLES, SPACE } from '../../styles/theme'
+import type { Cafe } from '../../db/cafe_queries'
 
 // サブ・コンポーネント
-import { DebugMonitor } from '../components/DebugMonitor'
-import { HeaderArea } from '../components/HeaderArea'
-import { SearchSection } from '../components/SearchSection'
-import { CafeCard } from '../components/CafeCard'
+import { DebugMonitor } from '../../components/DebugMonitor'
+import { HeaderArea } from './TopHeader'
+import { SearchSection } from './TopSearch'
+import { CafeCard } from '../../components/CafeCard'
 
 // 💡 コンポーネントのインポート
-import { SearchHeader } from '../components/SearchHeader'
-import { SearchLogic } from '../components/SearchLogic'
+import { SearchHeader } from '../../components/SearchHeader'
+import { SearchLogic } from '../../components/SearchLogic'
 
 // ページ専用設定
 export const PAGE_DESIGN = {

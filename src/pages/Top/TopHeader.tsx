@@ -3,12 +3,12 @@
  * 【 ALETHEIA - ヘッダー・エリア / HeaderArea.tsx 】
  * =============================================================================
  * 役割：ロゴおよび認証状態に応じたナビゲーションを表示します。
- * 📁 File Path: src/components/HeaderArea.tsx
+ * 📁 File Path: src/components/TopHeader.tsx
  * =============================================================================
  */
 
 /** @jsxImportSource hono/jsx */
-import { STYLES } from '../styles/theme'
+import { STYLES } from '../../styles/theme'
 
 // HTMX属性をTypeScriptに認識させるための定義
 declare module 'hono/jsx' {

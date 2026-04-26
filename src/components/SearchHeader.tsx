@@ -1,6 +1,6 @@
 /** @jsxImportSource hono/jsx */
 import { SPACE } from '../styles/theme'
-import { PAGE_DESIGN } from '../pages/Top'
+import { PAGE_DESIGN } from '../pages/Top/TopPage'
 
 interface SearchHeaderProps {
   /** 検索にヒットした合計件数 */
