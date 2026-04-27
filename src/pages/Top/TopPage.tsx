@@ -1,9 +1,9 @@
 /**
  * =============================================================================
- * 【 ALETHEIA - メインポータル・ビュー / Top.tsx 】
+ * 【 ALETHEIA - メインポータル・ビュー / TopPage.tsx 】
  * =============================================================================
  * 役割：実データ（店名・住所）に基づき、ノイズを排したリストを構築します。
- * 📁 File Path: src/pages/TopPage.tsx
+ * 📁 File Path: src/pages/Top/TopPage.tsx
  * =============================================================================
  */
 
@@ -17,11 +17,16 @@ import { HeaderArea } from './TopHeader'
 import { SearchSection } from './TopSearch'
 import { CafeCard } from '../../components/CafeCard'
 
-// 💡 コンポーネントのインポート
+// 共通コンポーネント・ロジックのインポート
 import { SearchHeader } from '../../components/SearchHeader'
 import { SearchLogic } from '../../components/SearchLogic'
 
-// ページ専用設定
+// 💡 分割したリストコンポーネントのインポート
+import { CafeList } from './TopList'
+
+/**
+ * ページ専用のデザイン設定
+ */
 export const PAGE_DESIGN = {
   SECTION_TITLE: { FONT_SIZE: '0.9rem', COLOR: '#111', WEIGHT: 700 },
   COUNTER: { COLOR: '#999', WEIGHT: 400 },
@@ -36,70 +41,16 @@ export const PAGE_DESIGN = {
   }
 } as const;
 
+/**
+ * UI用固定文言
+ */
 const UI_COPY = {
   LIST_TITLE: '近くのカフェ',
   MORE_LABEL: 'さらに読み込む',
   COPYRIGHT: '© 2026 ALETHEIA PROJECT'
 } as const;
 
-// CafeList
-interface CafeListProps {
-  cafes: Cafe[];
-  totalCount: number;
-  offset?: number;
-  keyword?: string;
-  region?: string;
-  category?: string;
-  detectedRegion?: string;
-}
-
-export const CafeList = ({ 
-  cafes, totalCount, offset = 0, keyword = '', region = '', category = '' , detectedRegion = '' 
-}: CafeListProps) => {
-  const nextOffset = offset + cafes.length;
-  const hasMore = nextOffset < totalCount;
-  
-  const params = new URLSearchParams({
-    offset: nextOffset.toString(),
-    keyword: keyword || '',
-    region: region || '',
-    category: category || '',
-    detectedRegion: detectedRegion || ''
-  }).toString();
-
-  return (
-    <div className="cafe-list-block">
-      {cafes.map((cafe, index) => (
-        <CafeCard 
-          key={cafe.service_id || `${offset}-${index}`}
-          title={cafe.title}
-          address={cafe.address}
-        />
-      ))}
-
-      <div className="more-button-wrapper" style={{ textAlign: 'center', marginTop: SPACE.MD }}>
-        {hasMore ? (
-          <button
-            style={{ ...PAGE_DESIGN.MORE_BTN, cursor: 'pointer', width: '100%' }}
-            hx-get={`/search?${params}`}
-            hx-target="closest .more-button-wrapper"
-            hx-swap="outerHTML"
-          >
-            {UI_COPY.MORE_LABEL}
-          </button>
-        ) : (
-          totalCount > 0 && (
-            <p style={{ fontSize: '0.8rem', color: '#ccc', margin: SPACE.MD }}>
-              すべてのデータを読み込みました
-            </p>
-          )
-        )}
-      </div>
-    </div>
-  )
-}
-
-// メイン・ビュー
+// 型定義
 interface LocationInfo { region: string; city: string; colo: string; }
 interface TopProps {
   user?: any; env?: any; cafes?: Cafe[]; totalCount?: number;
@@ -107,6 +58,9 @@ interface TopProps {
   category?: string;
 }
 
+/**
+ * メイン・ビュー：Top コンポーネント
+ */
 export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword = '', region = '', category = '' }: TopProps) => {
   const isDev = env?.NODE_ENV === 'development';
 
@@ -141,7 +95,6 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
         .arrow { font-size: 0.6rem; color: #ccc; transition: transform 0.2s; }
         .arrow.open { transform: rotate(90deg); }
 
-        /* 🌟 修正：解除ボタンとして機能させるためのスタイル更新 */
         .filter-chip { 
           display: inline-flex; 
           align-items: center; 
@@ -164,6 +117,7 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
       `}</style>
 
       <div style={STYLES.LAYOUT.OUTER_CONTAINER}>
+        {/* 開発モード時のデバッグモニター */}
         {isDev && (
           <div style={{ position: 'sticky', top: SPACE.MD, alignSelf: 'start', zIndex: 1000 }}>
             <DebugMonitor user={user} env={env} location={location} query={{ keyword, region, category }} />
@@ -180,6 +134,7 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
               <SearchHeader totalCount={totalCount} />
               
               <div id="cafe-cards-root">
+                {/* 💡 分割した CafeList コンポーネントを使用 */}
                 <CafeList 
                   cafes={cafes} 
                   totalCount={totalCount} 
@@ -199,8 +154,10 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
         </div>
       </div>
 
+      {/* クライアントサイド検索ロジックの注入 */}
       <SearchLogic />
 
+      {/* HTMXとUIの同期用スクリプト */}
       <script dangerouslySetInnerHTML={{ __html: `
         (function() {
           const sync = () => {

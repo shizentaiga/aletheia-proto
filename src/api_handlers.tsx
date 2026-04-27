@@ -6,7 +6,7 @@
  * 1. エンドポイントごとのビジネスロジック（ハンドラ）の実行
  * 2. Hono Context からのパラメータ抽出および整形
  * 3. 検索結果の表示（フルレンダリング / HTMX部分更新）の判定と出力
- * * 📁 File Path: src/api_handlers.tsx
+ * 📁 File Path: src/api_handlers.tsx
  * =============================================================================
  */
 
@@ -14,7 +14,8 @@
 import { Context } from 'hono'
 import { getCookie } from 'hono/cookie'
 import { getAllAreaStats, fetchCafesByContext } from './db/cafe_queries'
-import { Top, CafeList } from './pages/Top/TopPage' 
+import { Top } from './pages/Top/TopPage' 
+import { CafeList } from './pages/Top/TopList' // <-- 分割後の新しい参照先
 import { SearchHeader } from './components/SearchHeader'
 import { AUTH_CONFIG, getCurrentUser } from './lib/auth'
 
@@ -51,7 +52,7 @@ export const getSearchParams = (c: Context) => {
 
 /**
  * [GET] /
- * トップページの初期表示ハンドラ
+ * トップページの初期表示ハンドラ（フルレンダリング）
  * @param c - Hono Context
  */
 export const handleTopPage = async (c: Context) => {
@@ -120,7 +121,7 @@ export const renderCafeSearchResults = async (
     )
   }
 
-  // 2. HTMXリクエスト（初期検索）の場合：件数ヘッダーとリストを返却
+  // 2. HTMXリクエスト（初期検索：offset=0）の場合：件数ヘッダーとリストのルートを返却
   if (offset === 0) {
     return c.html(
       <>
@@ -140,7 +141,7 @@ export const renderCafeSearchResults = async (
     )
   }
 
-  // 3. HTMXリクエスト（追加読み込み）の場合：リスト断片のみを返却
+  // 3. HTMXリクエスト（追加読み込み：offset > 0）の場合：リストの断片のみを返却
   return c.html(
     <CafeList 
       cafes={cafes} 
