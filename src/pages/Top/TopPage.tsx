@@ -2,7 +2,7 @@
  * =============================================================================
  * 【 ALETHEIA - メインポータル・ビュー / TopPage.tsx 】
  * =============================================================================
- * 役割：実データ（店名・住所）に基づき、ノイズを排したリストを構築します。
+ * 役割：実データに基づき、各コンポーネントを統合してメインポータルを構築します。
  * 📁 File Path: src/pages/Top/TopPage.tsx
  * =============================================================================
  */
@@ -15,41 +15,14 @@ import type { Cafe } from '../../db/cafe_queries'
 import { DebugMonitor } from '../../components/DebugMonitor'
 import { HeaderArea } from './TopHeader'
 import { SearchSection } from './TopSearch'
-import { CafeCard } from '../../components/CafeCard'
-
-// 共通コンポーネント・ロジックのインポート
 import { SearchHeader } from '../../components/SearchHeader'
 import { SearchLogic } from '../../components/SearchLogic'
 
-// 分割したコンポーネントのインポート
+// 💡 外部ファイル化したコンポーネント・設定のインポート
 import { CafeList } from './TopList'
 import { TopStyles } from './TopStyles'
-
-/**
- * ページ専用のデザイン設定
- */
-export const PAGE_DESIGN = {
-  SECTION_TITLE: { FONT_SIZE: '0.9rem', COLOR: '#111', WEIGHT: 700 },
-  COUNTER: { COLOR: '#999', WEIGHT: 400 },
-  FOOTER: { FONT_SIZE: '0.75rem', COLOR: '#ccc', LETTER_SPACING: '1px' },
-  MORE_BTN: {
-    PADDING: `${SPACE.SM} ${SPACE.MD}`,
-    COLOR: '#666',
-    BG: '#f9f9f9',
-    BORDER: '1px solid #eee',
-    RADIUS: '4px',
-    FONT_SIZE: '0.85rem'
-  }
-} as const;
-
-/**
- * UI用固定文言
- */
-const UI_COPY = {
-  LIST_TITLE: '近くのカフェ',
-  MORE_LABEL: 'さらに読み込む',
-  COPYRIGHT: '© 2026 ALETHEIA PROJECT'
-} as const;
+import { TopScripts } from './TopScripts'
+import { PAGE_DESIGN, UI_COPY } from './TopConfig'
 
 // 型定義
 interface LocationInfo { region: string; city: string; colo: string; }
@@ -59,19 +32,14 @@ interface TopProps {
   category?: string;
 }
 
-/**
- * メイン・ビュー：Top コンポーネント
- */
 export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword = '', region = '', category = '' }: TopProps) => {
   const isDev = env?.NODE_ENV === 'development';
 
   return (
     <div style={STYLES.LAYOUT.WRAPPER}>
-      {/* 💡 スタイル定義の外部コンポーネント化 */}
       <TopStyles />
 
       <div style={STYLES.LAYOUT.OUTER_CONTAINER}>
-        {/* 開発モード時のデバッグモニター */}
         {isDev && (
           <div style={{ position: 'sticky', top: SPACE.MD, alignSelf: 'start', zIndex: 1000 }}>
             <DebugMonitor user={user} env={env} location={location} query={{ keyword, region, category }} />
@@ -80,13 +48,11 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
 
         <div style={STYLES.LAYOUT.MAIN}>
           <HeaderArea user={user} />
-          
           <SearchSection region={region} category={category} />
 
           <main style={STYLES.LAYOUT.LIST} id="cafe-list-container">
             <div id="search-results-area">
               <SearchHeader totalCount={totalCount} />
-              
               <div id="cafe-cards-root">
                 <CafeList 
                   cafes={cafes} 
@@ -107,27 +73,8 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
         </div>
       </div>
 
-      {/* クライアントサイド検索ロジックの注入 */}
       <SearchLogic />
-
-      {/* HTMXとUIの同期用スクリプト */}
-      <script dangerouslySetInnerHTML={{ __html: `
-        (function() {
-          const sync = () => {
-            if (window.syncUIFromData) {
-              window.syncUIFromData();
-            }
-          };
-
-          if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', sync);
-          } else {
-            sync();
-          }
-
-          document.addEventListener('htmx:afterSettle', sync);
-        })();
-      `}} />
+      <TopScripts />
     </div>
   );
 }
