@@ -1,27 +1,36 @@
+/** @jsxImportSource hono/jsx */
 import { Hono } from 'hono'
 import { html, raw } from 'hono/html'
 
 export const test07 = new Hono()
 
 /**
- * =============================================================================
- * 【配置先：src/constants/areaConfig.ts】
- * 役割：システム全体で共有するエリア設定。
- * =============================================================================
+ * 1. 【外部定数】src/constants/areaConfig.ts 相当
+ * 意図：ハードコードを排除し、デザインシステムとIDを一本化
  */
 const AREA_CONFIG = {
-  IDS: { TOKYO: '13' },
-  LABELS: { TOKYO: '東京都', DEFAULT_TITLE: 'エリアを選択' },
+  IDS: { TOKYO: '13', OSAKA: '27' },
+  LABELS: { TOKYO: '東京都', OSAKA: '大阪府', DEFAULT_TITLE: 'エリアを選択' },
   STYLES: { PRIMARY_BLUE: '#007AFF', BORDER_GRAY: '#e5e5ea' }
 } as const;
 
 /**
- * =============================================================================
- * 【配置先：src/pages/Top/TopStyles.tsx または独立したCSSファイル】
- * 役割：エリア選択オーバーレイ専用のスタイル定義。
- * =============================================================================
+ * 2. 【DBデータ生成】src/db/cafe_queries.ts 相当のロジック
+ * 意図：サーバーサイドで組み立てたHTMLが、壊れずにクライアントへ渡るか検証
  */
-const AreaStyles = () => html`
+const generateLevel1Html = (data: {id: string, name: string}[]) => {
+  return data.map(item => `
+    <div class="list-item" onclick="goNextLevel('${item.id}', '${item.name}')">
+      <span>${item.name}</span><span>＞</span>
+    </div>
+  `).join('');
+};
+
+/**
+ * 3. 【スタイル定義】
+ * 意図：外部テーマ変数への依存。body固定用クラスの追加。
+ */
+const AreaStyles = (theme: typeof AREA_CONFIG.STYLES) => html`
 <style>
   #area-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -30,28 +39,27 @@ const AreaStyles = () => html`
     display: flex; flex-direction: column; visibility: hidden;
   }
   #area-overlay.is-open { transform: translateX(0); visibility: visible; }
-  .nav-header { height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; border-bottom: 0.5px solid ${AREA_CONFIG.STYLES.BORDER_GRAY}; }
-  .back-btn { min-width: 48px; height: 48px; color: ${AREA_CONFIG.STYLES.PRIMARY_BLUE}; font-size: 24px; border: none; background: none; cursor: pointer; }
+  .nav-header { height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; border-bottom: 0.5px solid ${theme.BORDER_GRAY}; }
+  .back-btn { min-width: 48px; height: 48px; color: ${theme.PRIMARY_BLUE}; font-size: 24px; border: none; background: none; cursor: pointer; }
   .header-title { font-weight: 600; font-size: 17px; }
-  .menu-list { flex: 1; overflow-y: auto; }
-  .list-item { padding: 14px 16px; border-bottom: 0.5px solid ${AREA_CONFIG.STYLES.BORDER_GRAY}; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+  .menu-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .list-item { padding: 14px 16px; border-bottom: 0.5px solid ${theme.BORDER_GRAY}; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
   .list-item:active { background: #f2f2f7; }
   .layer-slide-in { animation: areaSlideIn 0.2s forwards; }
   @keyframes areaSlideIn { from { transform: translateX(30%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  body.area-open { overflow: hidden; } /* 背後スクロール防止 */
 </style>
 `;
 
 /**
- * =============================================================================
- * 【配置先：src/pages/Top/AreaOverlay.tsx】
- * 役割：オーバーレイのHTML構造。TopPage.tsx の末尾付近で呼び出す。
- * =============================================================================
+ * 4. 【UI構造】
+ * 意図：初期タイトルの外部変数化。
  */
-const AreaOverlayUI = () => html`
+const AreaOverlayUI = (defaultTitle: string) => html`
   <div id="area-overlay">
     <div class="nav-header">
       <button class="back-btn" id="back-action">×</button>
-      <div class="header-title" id="header-title">${AREA_CONFIG.LABELS.DEFAULT_TITLE}</div>
+      <div class="header-title" id="header-title">${defaultTitle}</div>
       <div style="width:48px"></div>
     </div>
     <div class="menu-list" id="area-content"></div>
@@ -59,27 +67,25 @@ const AreaOverlayUI = () => html`
 `;
 
 /**
- * =============================================================================
- * 【配置先：src/pages/Top/AreaScripts.tsx】
- * 役割：クライアントサイドの動的制御ロジック。
- * 引数の level1Html は、サーバー側（api_handlers等）で生成したHTMLを渡す。
- * =============================================================================
+ * 5. 【制御ロジック】
+ * 意図：ConfigおよびDB由来データの完全な動的受け入れ。
  */
-const AreaScripts = (level1Html: string) => html`
-<template id="level1-template">${raw(level1Html)}</template>
+const AreaScripts = (level1Html: string, config: typeof AREA_CONFIG) => html`
+<template id="level1-template" style="display:none;">${raw(level1Html)}</template>
 
 <script>
   (function() {
     const templateEl = document.getElementById('level1-template');
-    const MOCK_LEVEL1 = templateEl.innerHTML;
+    const INJECTED_LEVEL1 = templateEl ? templateEl.innerHTML : '';
     
-    // 【本番実装時の注意】
-    // MOCK_DATA は api_handlers.tsx で定義したAPI endpoint (/api/areas?id=xxx 等) 
-    // から fetch する形に書き換えることで、完全な動的化が可能。
-    const MOCK_DATA = {
-      '13': \`
-        <div class="list-item" onclick="finalizeArea('東京都（全域）')"><span style="color:#007AFF; font-weight:600;">東京都（全域）</span></div>
+    // API経由で取得する想定の階層データ（キーも外部定義に依存）
+    const DYNAMIC_MAP = {
+      [String('${config.IDS.TOKYO}')]: \`
+        <div class="list-item" onclick="finalizeArea('${config.LABELS.TOKYO}（全域）')"><span>${config.LABELS.TOKYO}（全域）</span></div>
         <div class="list-item" onclick="finalizeArea('新宿区')"><span>新宿区</span></div>
+      \`,
+      [String('${config.IDS.OSAKA}')]: \`
+        <div class="list-item" onclick="finalizeArea('${config.LABELS.OSAKA}（全域）')"><span>${config.LABELS.OSAKA}（全域）</span></div>
       \`
     };
 
@@ -89,25 +95,28 @@ const AreaScripts = (level1Html: string) => html`
     const backBtn = document.getElementById('back-action');
     let currentStack = [];
 
-    // モーダル起動用（外部から window.openAreaSelect() で叩く）
     window.openAreaSelect = function(initialId = null, initialLabel = null) {
+      if (overlay.classList.contains('is-open')) return; // 二重起動防止
+
       location.hash = 'area';
       overlay.classList.add('is-open');
+      document.body.classList.add('area-open');
       
-      // スタックの底に「地方リスト」を敷く
-      currentStack = [{ html: MOCK_LEVEL1, title: "${AREA_CONFIG.LABELS.DEFAULT_TITLE}" }];
+      // スタックの底を外部注入HTMLで構築
+      currentStack = [{ html: INJECTED_LEVEL1, title: "${config.LABELS.DEFAULT_TITLE}" }];
 
-      // 初期値（CDN由来等）がある場合は2層目まで自動展開
-      if (initialId && MOCK_DATA[initialId]) {
-        currentStack.push({ html: MOCK_DATA[initialId], title: initialLabel });
+      // 初期値連動（CDN/ヘッダー由来）
+      const sid = initialId ? String(initialId) : null;
+      if (sid && DYNAMIC_MAP[sid]) {
+        currentStack.push({ html: DYNAMIC_MAP[sid], title: initialLabel });
       }
       
       renderLevel();
     };
 
-    // リスト内クリック時の遷移用
     window.goNextLevel = function(id, label) {
-      const nextHtml = MOCK_DATA[id] || \`<div class="list-item"><span>\${label} のデータはありません</span></div>\`;
+      const sid = String(id);
+      const nextHtml = DYNAMIC_MAP[sid] || \`<div class="list-item"><span>\${label} の詳細は未実装です</span></div>\`;
       currentStack.push({ html: nextHtml, title: label });
       renderLevel();
     };
@@ -139,11 +148,14 @@ const AreaScripts = (level1Html: string) => html`
     }
 
     window.addEventListener('popstate', () => {
-      if (!location.hash.includes('area')) overlay.classList.remove('is-open');
+      if (!location.hash.includes('area')) {
+        overlay.classList.remove('is-open');
+        document.body.classList.remove('area-open');
+        currentStack = []; // スタッククリア
+      }
     });
 
     window.finalizeArea = (result) => {
-      // 検索結果の反映ロジック（URL遷移など）をここに記述
       alert("決定: " + result);
       closeAreaSelect();
     };
@@ -152,18 +164,20 @@ const AreaScripts = (level1Html: string) => html`
 `;
 
 /**
- * =============================================================================
- * 【配置先：src/handlers/api_handlers.tsx または TopPage.tsx の get ルート】
- * 役割：最終的なページの組み立てと、初期データの注入。
- * =============================================================================
+ * 6. 【メインハンドラー】
+ * 意図：外部変数・外部ロジックの流し込みテスト。
  */
 test07.get('/', (c) => {
-  // DBから取得した「地方リスト」のHTML。実際には map() 等で生成。
-  const level1Data = `
-    <div class="list-item" onclick="goNextLevel('13', '東京都')">
-      <span>関東</span><span>＞</span>
-    </div>
-  `;
+  // DBから動的に生成した想定のデータ
+  const regionsFromDB = [
+    { id: AREA_CONFIG.IDS.TOKYO, name: AREA_CONFIG.LABELS.TOKYO },
+    { id: AREA_CONFIG.IDS.OSAKA, name: AREA_CONFIG.LABELS.OSAKA }
+  ];
+  const level1Data = generateLevel1Html(regionsFromDB);
+
+  // 外部(CDN等)から取得した想定の変数
+  const detectedId = AREA_CONFIG.IDS.TOKYO;
+  const detectedLabel = AREA_CONFIG.LABELS.TOKYO;
 
   return c.html(html`
     <!DOCTYPE html>
@@ -171,23 +185,23 @@ test07.get('/', (c) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-      <title>Modular Area Test - Guide版</title>
-      ${AreaStyles()}
+      <title>Modular Area Test - Enterprise版</title>
+      ${AreaStyles(AREA_CONFIG.STYLES)}
     </head>
-    <body style="background: #f2f2f7;">
+    <body style="background: #f2f2f7; font-family: sans-serif;">
       
       <div style="padding: 50px; display: flex; flex-direction: column; gap: 20px;">
-        <button onclick="openAreaSelect()" style="padding: 16px;">
-          パターンA：初期値なし
+        <button onclick="openAreaSelect()" style="padding: 16px; border-radius: 8px; border: 1px solid #ccc;">
+          パターンA：初期値なし（外部HTML注入をテスト）
         </button>
 
-        <button onclick="openAreaSelect('${AREA_CONFIG.IDS.TOKYO}', '${AREA_CONFIG.LABELS.TOKYO}')" style="padding: 16px;">
-          パターンB：初期値あり
+        <button onclick="openAreaSelect('${detectedId}', '${detectedLabel}')" style="padding: 16px; border-radius: 8px; border: 1px solid #ccc; background: white;">
+          パターンB：初期値あり（外部変数連動をテスト）
         </button>
       </div>
 
-      ${AreaOverlayUI()}
-      ${AreaScripts(level1Data)}
+      ${AreaOverlayUI(AREA_CONFIG.LABELS.DEFAULT_TITLE)}
+      ${AreaScripts(level1Data, AREA_CONFIG)}
 
     </body>
     </html>
