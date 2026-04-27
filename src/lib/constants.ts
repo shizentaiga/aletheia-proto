@@ -1,10 +1,22 @@
 /**
  * [ALETHEIA PROJECT] 共通定数定義
- * 地理情報マッピングおよびアプリケーション全体で共有する固定値を管理します。
+ * 地理情報マッピング、検索マスター、およびアプリケーションのデザインシステム定数を管理します。
+ * 📁 File Path: src/lib/constants.ts
  */
 
 /**
- * 1. UI表示用の固定文言（ラベル）の一元管理
+ * 1. デザインシステム・スタイル定数
+ * UIコンポーネント間で共有する色情報や共通のラベル設定です。
+ */
+export const AREA_CONFIG = {
+  STYLES: {
+    PRIMARY_BLUE: '#007AFF',
+    BORDER_GRAY: '#e5e5ea',
+  },
+} as const;
+
+/**
+ * 2. UI表示用の固定文言（ラベル）の一元管理
  */
 export const UI_TEXT = {
   RESET_LABEL: '指定なし',
@@ -14,7 +26,7 @@ export const UI_TEXT = {
 } as const;
 
 /**
- * 2. 都道府県の正規マスターデータ
+ * 3. 都道府県の正規マスターデータ
  * ISO 3166-2:JP に準拠したコード、英語名、日本語名を統合。
  * Cloudflareからの入力 ("Tokyo") やコード ("13") をすべてここに集約。
  */
@@ -69,7 +81,7 @@ export const PREFECTURE_MASTER: Record<string, string> = {
 } as const;
 
 /**
- * 3. 地方（Region）区分と所属都道府県の定義
+ * 4. 地方（Region）区分と所属都道府県の定義
  */
 export const JP_REGIONS: Record<string, string[]> = {
   hokkaido: ["北海道"],
@@ -83,8 +95,8 @@ export const JP_REGIONS: Record<string, string[]> = {
 } as const;
 
 /**
- * 4. 検索UI用のマスターデータ
- * SearchLogic.tsx に注入するデータの構造をここで定義します。
+ * 5. 検索UI用のマスターデータ
+ * UIコンポーネントに注入するデータの構造をここで定義します。
  */
 export const SEARCH_MASTER = {
   region: {
@@ -113,11 +125,20 @@ export const SEARCH_MASTER = {
 } as const;
 
 /**
- * 5. 互換用ユーティリティ
+ * 6. 互換用・ヘルパー定数
  */
+
+// AREA_CONFIG.LABELS を SEARCH_MASTER 経由で解決（test07の互換性維持のため）
+export const AREA_LABELS = {
+  DEFAULT_TITLE: SEARCH_MASTER.region.title
+} as const;
 
 // 既存コードが JP_PREFECTURES を参照している場合の互換性維持
 export const JP_PREFECTURES = PREFECTURE_MASTER;
+
+/**
+ * 7. ユーティリティ関数
+ */
 
 /**
  * CloudflareのRegionプロパティから日本語都道府県名を解決する

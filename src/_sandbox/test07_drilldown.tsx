@@ -1,36 +1,46 @@
+/**
+ * [test07] ドリルダウンの改善（Master Data Sync版）
+ * 📁 File Path: src/_sandbox/test07_drilldown.tsx
+ */
+
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono'
 import { html, raw } from 'hono/html'
+// constants.ts から AREA_CONFIG も含めてインポート
+import { 
+  UI_TEXT, 
+  PREFECTURE_MASTER, 
+  SEARCH_MASTER,
+  AREA_CONFIG 
+} from '../lib/constants'
 
 export const test07 = new Hono()
 
 /**
- * 1. 【外部定数】src/constants/areaConfig.ts 相当
- * 意図：ハードコードを排除し、デザインシステムとIDを一本化
+ * 1. 【外部定数】
+ * 意図：constants.ts 側の AREA_CONFIG を使用。
+ * test07固有の追加設定が必要な場合のみ、ここでスプレッド展開して定義。
  */
-const AREA_CONFIG = {
-  IDS: { TOKYO: '13', OSAKA: '27' },
-  LABELS: { TOKYO: '東京都', OSAKA: '大阪府', DEFAULT_TITLE: 'エリアを選択' },
-  STYLES: { PRIMARY_BLUE: '#007AFF', BORDER_GRAY: '#e5e5ea' }
-} as const;
+const CONFIG = AREA_CONFIG;
 
 /**
- * 2. 【DBデータ生成】src/db/cafe_queries.ts 相当のロジック
- * 意図：サーバーサイドで組み立てたHTMLが、壊れずにクライアントへ渡るか検証
+ * 2. 【DBデータ生成】src/db/areaQueries.ts 相当
+ * 意図：SEARCH_MASTER から地方リストを生成。
  */
-const generateLevel1Html = (data: {id: string, name: string}[]) => {
-  return data.map(item => `
-    <div class="list-item" onclick="goNextLevel('${item.id}', '${item.name}')">
-      <span>${item.name}</span><span>＞</span>
-    </div>
-  `).join('');
+const generateLevel1Html = () => {
+  return Object.entries(SEARCH_MASTER.region.options)
+    .filter(([label]) => label !== UI_TEXT.ALL_COUNTRY)
+    .map(([label, data]) => `
+      <div class="list-item" onclick="goNextLevel('${data.value}', '${label}')">
+        <span>${label}</span><span>＞</span>
+      </div>
+    `).join('');
 };
 
 /**
- * 3. 【スタイル定義】
- * 意図：外部テーマ変数への依存。body固定用クラスの追加。
+ * 3. 【スタイル定義】src/components/AreaSearchOverlay.tsx 相当
  */
-const AreaStyles = (theme: typeof AREA_CONFIG.STYLES) => html`
+const AreaStyles = (theme: typeof CONFIG.STYLES) => html`
 <style>
   #area-overlay {
     position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -47,13 +57,12 @@ const AreaStyles = (theme: typeof AREA_CONFIG.STYLES) => html`
   .list-item:active { background: #f2f2f7; }
   .layer-slide-in { animation: areaSlideIn 0.2s forwards; }
   @keyframes areaSlideIn { from { transform: translateX(30%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-  body.area-open { overflow: hidden; } /* 背後スクロール防止 */
+  body.area-open { overflow: hidden; }
 </style>
 `;
 
 /**
- * 4. 【UI構造】
- * 意図：初期タイトルの外部変数化。
+ * 4. 【UI構造】src/components/AreaSearchOverlay.tsx 相当
  */
 const AreaOverlayUI = (defaultTitle: string) => html`
   <div id="area-overlay">
@@ -67,10 +76,9 @@ const AreaOverlayUI = (defaultTitle: string) => html`
 `;
 
 /**
- * 5. 【制御ロジック】
- * 意図：ConfigおよびDB由来データの完全な動的受け入れ。
+ * 5. 【制御ロジック】src/components/AreaSearchOverlay.tsx 相当
  */
-const AreaScripts = (level1Html: string, config: typeof AREA_CONFIG) => html`
+const AreaScripts = (level1Html: string, theme: typeof CONFIG.STYLES) => html`
 <template id="level1-template" style="display:none;">${raw(level1Html)}</template>
 
 <script>
@@ -78,16 +86,8 @@ const AreaScripts = (level1Html: string, config: typeof AREA_CONFIG) => html`
     const templateEl = document.getElementById('level1-template');
     const INJECTED_LEVEL1 = templateEl ? templateEl.innerHTML : '';
     
-    // API経由で取得する想定の階層データ（キーも外部定義に依存）
-    const DYNAMIC_MAP = {
-      [String('${config.IDS.TOKYO}')]: \`
-        <div class="list-item" onclick="finalizeArea('${config.LABELS.TOKYO}（全域）')"><span>${config.LABELS.TOKYO}（全域）</span></div>
-        <div class="list-item" onclick="finalizeArea('新宿区')"><span>新宿区</span></div>
-      \`,
-      [String('${config.IDS.OSAKA}')]: \`
-        <div class="list-item" onclick="finalizeArea('${config.LABELS.OSAKA}（全域）')"><span>${config.LABELS.OSAKA}（全域）</span></div>
-      \`
-    };
+    const SEARCH_OPTIONS = ${raw(JSON.stringify(SEARCH_MASTER.region.options))};
+    const PREF_MASTER = ${raw(JSON.stringify(PREFECTURE_MASTER))};
 
     const overlay = document.getElementById('area-overlay');
     const content = document.getElementById('area-content');
@@ -95,36 +95,51 @@ const AreaScripts = (level1Html: string, config: typeof AREA_CONFIG) => html`
     const backBtn = document.getElementById('back-action');
     let currentStack = [];
 
-    window.openAreaSelect = function(initialId = null, initialLabel = null) {
-      if (overlay.classList.contains('is-open')) return; // 二重起動防止
+    window.openAreaSelect = function(initialKey = null) {
+      if (overlay.classList.contains('is-open')) return;
 
       location.hash = 'area';
       overlay.classList.add('is-open');
       document.body.classList.add('area-open');
       
-      // スタックの底を外部注入HTMLで構築
-      currentStack = [{ html: INJECTED_LEVEL1, title: "${config.LABELS.DEFAULT_TITLE}" }];
+      currentStack = [{ html: INJECTED_LEVEL1, title: "${SEARCH_MASTER.region.title}" }];
 
-      // 初期値連動（CDN/ヘッダー由来）
-      const sid = initialId ? String(initialId) : null;
-      if (sid && DYNAMIC_MAP[sid]) {
-        currentStack.push({ html: DYNAMIC_MAP[sid], title: initialLabel });
+      const prefName = initialKey ? PREF_MASTER[initialKey] : null;
+      if (prefName) {
+        for (const [regionLabel, opt] of Object.entries(SEARCH_OPTIONS)) {
+          if (opt.sub && opt.sub.includes(prefName)) {
+            currentStack.push({ 
+              html: generateSubListHtml(opt.sub, prefName), 
+              title: regionLabel 
+            });
+            break;
+          }
+        }
       }
-      
       renderLevel();
     };
 
-    window.goNextLevel = function(id, label) {
-      const sid = String(id);
-      const nextHtml = DYNAMIC_MAP[sid] || \`<div class="list-item"><span>\${label} の詳細は未実装です</span></div>\`;
-      currentStack.push({ html: nextHtml, title: label });
-      renderLevel();
+    window.goNextLevel = function(val, label) {
+      const option = Object.values(SEARCH_OPTIONS).find(o => o.value === val);
+      if (option && option.sub) {
+        currentStack.push({ html: generateSubListHtml(option.sub), title: label });
+        renderLevel();
+      }
     };
+
+    function generateSubHtml(prefs, highlight = null) {
+      return prefs.map(p => {
+        const isSelected = p === highlight;
+        const style = isSelected ? 'color:${theme.PRIMARY_BLUE}; font-weight:bold;' : '';
+        return \`<div class="list-item" onclick="finalizeArea('\${p}')">
+          <span style="\${style}">\${p}\${isSelected ? ' (現在地)' : ''}</span>
+        </div>\`;
+      }).join('');
+    }
 
     function renderLevel() {
       const current = currentStack[currentStack.length - 1];
       if (!current) return;
-      
       content.innerHTML = current.html; 
       title.innerText = current.title;
       backBtn.innerText = currentStack.length > 1 ? "＜" : "×";
@@ -135,49 +150,32 @@ const AreaScripts = (level1Html: string, config: typeof AREA_CONFIG) => html`
     }
 
     backBtn.onclick = () => {
-      if (currentStack.length > 1) {
-        currentStack.pop();
-        renderLevel();
-      } else {
-        closeAreaSelect();
-      }
+      if (currentStack.length > 1) { currentStack.pop(); renderLevel(); } 
+      else { closeAreaSelect(); }
     };
 
-    function closeAreaSelect() {
-      if(location.hash === '#area') history.back();
-    }
+    function closeAreaSelect() { if(location.hash === '#area') history.back(); }
 
     window.addEventListener('popstate', () => {
       if (!location.hash.includes('area')) {
         overlay.classList.remove('is-open');
         document.body.classList.remove('area-open');
-        currentStack = []; // スタッククリア
+        currentStack = [];
       }
     });
 
-    window.finalizeArea = (result) => {
-      alert("決定: " + result);
-      closeAreaSelect();
-    };
+    window.finalizeArea = (res) => { alert("決定: " + res); closeAreaSelect(); };
+    function generateSubListHtml(prefs, highlight) { return generateSubHtml(prefs, highlight); }
   })();
 </script>
 `;
 
 /**
  * 6. 【メインハンドラー】
- * 意図：外部変数・外部ロジックの流し込みテスト。
  */
 test07.get('/', (c) => {
-  // DBから動的に生成した想定のデータ
-  const regionsFromDB = [
-    { id: AREA_CONFIG.IDS.TOKYO, name: AREA_CONFIG.LABELS.TOKYO },
-    { id: AREA_CONFIG.IDS.OSAKA, name: AREA_CONFIG.LABELS.OSAKA }
-  ];
-  const level1Data = generateLevel1Html(regionsFromDB);
-
-  // 外部(CDN等)から取得した想定の変数
-  const detectedId = AREA_CONFIG.IDS.TOKYO;
-  const detectedLabel = AREA_CONFIG.LABELS.TOKYO;
+  const level1Data = generateLevel1Html();
+  const detectedId = "Tokyo"; 
 
   return c.html(html`
     <!DOCTYPE html>
@@ -185,23 +183,23 @@ test07.get('/', (c) => {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-      <title>Modular Area Test - Enterprise版</title>
-      ${AreaStyles(AREA_CONFIG.STYLES)}
+      <title>Master Sync Final - ALETHEIA</title>
+      ${AreaStyles(CONFIG.STYLES)}
     </head>
-    <body style="background: #f2f2f7; font-family: sans-serif;">
+    <body style="background: #f2f2f7; font-family: sans-serif; padding: 20px;">
       
-      <div style="padding: 50px; display: flex; flex-direction: column; gap: 20px;">
+      <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 50px;">
         <button onclick="openAreaSelect()" style="padding: 16px; border-radius: 8px; border: 1px solid #ccc;">
-          パターンA：初期値なし（外部HTML注入をテスト）
+          パターンA：初期値なし
         </button>
 
-        <button onclick="openAreaSelect('${detectedId}', '${detectedLabel}')" style="padding: 16px; border-radius: 8px; border: 1px solid #ccc; background: white;">
-          パターンB：初期値あり（外部変数連動をテスト）
+        <button onclick="openAreaSelect('${detectedId}')" style="padding: 16px; border-radius: 8px; border: 1px solid #ccc; background: white;">
+          パターンB：現在地解決 (${detectedId})
         </button>
       </div>
 
-      ${AreaOverlayUI(AREA_CONFIG.LABELS.DEFAULT_TITLE)}
-      ${AreaScripts(level1Data, AREA_CONFIG)}
+      ${AreaOverlayUI(SEARCH_MASTER.region.title)}
+      ${AreaScripts(level1Data, CONFIG.STYLES)}
 
     </body>
     </html>
