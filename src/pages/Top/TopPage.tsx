@@ -21,8 +21,9 @@ import { CafeCard } from '../../components/CafeCard'
 import { SearchHeader } from '../../components/SearchHeader'
 import { SearchLogic } from '../../components/SearchLogic'
 
-// 💡 分割したリストコンポーネントのインポート
+// 分割したコンポーネントのインポート
 import { CafeList } from './TopList'
+import { TopStyles } from './TopStyles'
 
 /**
  * ページ専用のデザイン設定
@@ -66,55 +67,8 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
 
   return (
     <div style={STYLES.LAYOUT.WRAPPER}>
-      <style>{`
-        .drilldown-item { 
-          padding: ${SPACE.MD}; 
-          border-bottom: 1px solid #f5f5f5; 
-          cursor: pointer; 
-          display: flex; 
-          justify-content: space-between;
-          align-items: center;
-          font-size: 0.9rem;
-        }
-        .drilldown-item:active { background: #f9f9f9; }
-        
-        .sub-menu { 
-          display: none; 
-          background: #fafafa; 
-        }
-        .sub-menu.show { display: block; }
-        
-        .sub-item { 
-          padding: ${SPACE.SM} ${SPACE.MD} ${SPACE.SM} ${SPACE.LG}; 
-          border-bottom: 1px dotted #eee;
-          font-size: 0.85rem;
-          color: #555;
-        }
-        .sub-item:active { background: #f0f0f0; }
-
-        .arrow { font-size: 0.6rem; color: #ccc; transition: transform 0.2s; }
-        .arrow.open { transform: rotate(90deg); }
-
-        .filter-chip { 
-          display: inline-flex; 
-          align-items: center; 
-          background: #e8f0fe; 
-          color: #4285F4;
-          padding: 4px 12px; 
-          border-radius: 999px; 
-          font-size: 0.75rem; 
-          font-weight: bold;
-          cursor: pointer;
-          transition: background 0.2s;
-          user-select: none;
-        }
-        .filter-chip:hover {
-          background: #d2e3fc;
-        }
-        .filter-chip:active {
-          transform: scale(0.96);
-        }
-      `}</style>
+      {/* 💡 スタイル定義の外部コンポーネント化 */}
+      <TopStyles />
 
       <div style={STYLES.LAYOUT.OUTER_CONTAINER}>
         {/* 開発モード時のデバッグモニター */}
@@ -134,7 +88,6 @@ export const Top = ({ user, env, cafes = [], totalCount = 0, location, keyword =
               <SearchHeader totalCount={totalCount} />
               
               <div id="cafe-cards-root">
-                {/* 💡 分割した CafeList コンポーネントを使用 */}
                 <CafeList 
                   cafes={cafes} 
                   totalCount={totalCount} 
