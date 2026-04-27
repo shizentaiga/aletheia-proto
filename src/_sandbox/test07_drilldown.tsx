@@ -1,206 +1,181 @@
 /**
- * [test07] ドリルダウンの改善（Master Data Sync版）
+ * [test07] ドリルダウン最終版（3階層・DB連携）
  * 📁 File Path: src/_sandbox/test07_drilldown.tsx
  */
 
 /** @jsxImportSource hono/jsx */
 import { Hono } from 'hono'
 import { html, raw } from 'hono/html'
-// constants.ts から AREA_CONFIG も含めてインポート
-import { 
-  UI_TEXT, 
-  PREFECTURE_MASTER, 
-  SEARCH_MASTER,
-  AREA_CONFIG 
-} from '../lib/constants'
+import { UI_TEXT, PREFECTURE_MASTER, SEARCH_MASTER, AREA_CONFIG } from '../lib/constants'
+import { getCityStats } from '../db/cafe_queries'
 
-export const test07 = new Hono()
+type Bindings = { ALETHEIA_PROTO_DB: D1Database }
+export const test07 = new Hono<{ Bindings: Bindings }>()
 
 /**
- * 1. 【外部定数】
- * 意図：constants.ts 側の AREA_CONFIG を使用。
- * test07固有の追加設定が必要な場合のみ、ここでスプレッド展開して定義。
+ * 1. 【API】市区町村取得
  */
-const CONFIG = AREA_CONFIG;
+test07.get('/api/cities/:pref', async (c) => {
+  const db = c.env?.ALETHEIA_PROTO_DB;
+  const pref = c.req.param('pref');
+  if (!db) return c.json({ success: false, data: [] });
+  const stats = await getCityStats(db, pref);
+  return c.json({ success: true, data: stats });
+});
 
 /**
- * 2. 【DBデータ生成】src/db/areaQueries.ts 相当
- * 意図：SEARCH_MASTER から地方リストを生成。
- */
-const generateLevel1Html = () => {
-  return Object.entries(SEARCH_MASTER.region.options)
-    .filter(([label]) => label !== UI_TEXT.ALL_COUNTRY)
-    .map(([label, data]) => `
-      <div class="list-item" onclick="goNextLevel('${data.value}', '${label}')">
-        <span>${label}</span><span>＞</span>
-      </div>
-    `).join('');
-};
-
-/**
- * 3. 【スタイル定義】src/components/AreaSearchOverlay.tsx 相当
- */
-const AreaStyles = (theme: typeof CONFIG.STYLES) => html`
-<style>
-  #area-overlay {
-    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-    background: white; z-index: 1000; transform: translateX(100%);
-    transition: transform 0.2s cubic-bezier(0.33, 1, 0.68, 1);
-    display: flex; flex-direction: column; visibility: hidden;
-  }
-  #area-overlay.is-open { transform: translateX(0); visibility: visible; }
-  .nav-header { height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; border-bottom: 0.5px solid ${theme.BORDER_GRAY}; }
-  .back-btn { min-width: 48px; height: 48px; color: ${theme.PRIMARY_BLUE}; font-size: 24px; border: none; background: none; cursor: pointer; }
-  .header-title { font-weight: 600; font-size: 17px; }
-  .menu-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-  .list-item { padding: 14px 16px; border-bottom: 0.5px solid ${theme.BORDER_GRAY}; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-  .list-item:active { background: #f2f2f7; }
-  .layer-slide-in { animation: areaSlideIn 0.2s forwards; }
-  @keyframes areaSlideIn { from { transform: translateX(30%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-  body.area-open { overflow: hidden; }
-</style>
-`;
-
-/**
- * 4. 【UI構造】src/components/AreaSearchOverlay.tsx 相当
- */
-const AreaOverlayUI = (defaultTitle: string) => html`
-  <div id="area-overlay">
-    <div class="nav-header">
-      <button class="back-btn" id="back-action">×</button>
-      <div class="header-title" id="header-title">${defaultTitle}</div>
-      <div style="width:48px"></div>
-    </div>
-    <div class="menu-list" id="area-content"></div>
-  </div>
-`;
-
-/**
- * 5. 【制御ロジック】src/components/AreaSearchOverlay.tsx 相当
- */
-const AreaScripts = (level1Html: string, theme: typeof CONFIG.STYLES) => html`
-<template id="level1-template" style="display:none;">${raw(level1Html)}</template>
-
-<script>
-  (function() {
-    const templateEl = document.getElementById('level1-template');
-    const INJECTED_LEVEL1 = templateEl ? templateEl.innerHTML : '';
-    
-    const SEARCH_OPTIONS = ${raw(JSON.stringify(SEARCH_MASTER.region.options))};
-    const PREF_MASTER = ${raw(JSON.stringify(PREFECTURE_MASTER))};
-
-    const overlay = document.getElementById('area-overlay');
-    const content = document.getElementById('area-content');
-    const title = document.getElementById('header-title');
-    const backBtn = document.getElementById('back-action');
-    let currentStack = [];
-
-    window.openAreaSelect = function(initialKey = null) {
-      if (overlay.classList.contains('is-open')) return;
-
-      location.hash = 'area';
-      overlay.classList.add('is-open');
-      document.body.classList.add('area-open');
-      
-      currentStack = [{ html: INJECTED_LEVEL1, title: "${SEARCH_MASTER.region.title}" }];
-
-      const prefName = initialKey ? PREF_MASTER[initialKey] : null;
-      if (prefName) {
-        for (const [regionLabel, opt] of Object.entries(SEARCH_OPTIONS)) {
-          if (opt.sub && opt.sub.includes(prefName)) {
-            currentStack.push({ 
-              html: generateSubListHtml(opt.sub, prefName), 
-              title: regionLabel 
-            });
-            break;
-          }
-        }
-      }
-      renderLevel();
-    };
-
-    window.goNextLevel = function(val, label) {
-      const option = Object.values(SEARCH_OPTIONS).find(o => o.value === val);
-      if (option && option.sub) {
-        currentStack.push({ html: generateSubListHtml(option.sub), title: label });
-        renderLevel();
-      }
-    };
-
-    function generateSubHtml(prefs, highlight = null) {
-      return prefs.map(p => {
-        const isSelected = p === highlight;
-        const style = isSelected ? 'color:${theme.PRIMARY_BLUE}; font-weight:bold;' : '';
-        return \`<div class="list-item" onclick="finalizeArea('\${p}')">
-          <span style="\${style}">\${p}\${isSelected ? ' (現在地)' : ''}</span>
-        </div>\`;
-      }).join('');
-    }
-
-    function renderLevel() {
-      const current = currentStack[currentStack.length - 1];
-      if (!current) return;
-      content.innerHTML = current.html; 
-      title.innerText = current.title;
-      backBtn.innerText = currentStack.length > 1 ? "＜" : "×";
-      
-      content.classList.remove('layer-slide-in');
-      void content.offsetWidth;
-      content.classList.add('layer-slide-in');
-    }
-
-    backBtn.onclick = () => {
-      if (currentStack.length > 1) { currentStack.pop(); renderLevel(); } 
-      else { closeAreaSelect(); }
-    };
-
-    function closeAreaSelect() { if(location.hash === '#area') history.back(); }
-
-    window.addEventListener('popstate', () => {
-      if (!location.hash.includes('area')) {
-        overlay.classList.remove('is-open');
-        document.body.classList.remove('area-open');
-        currentStack = [];
-      }
-    });
-
-    window.finalizeArea = (res) => { alert("決定: " + res); closeAreaSelect(); };
-    function generateSubListHtml(prefs, highlight) { return generateSubHtml(prefs, highlight); }
-  })();
-</script>
-`;
-
-/**
- * 6. 【メインハンドラー】
+ * 2. 【メイン表示】
  */
 test07.get('/', (c) => {
-  const level1Data = generateLevel1Html();
-  const detectedId = "Tokyo"; 
+  const detectedId = "Tokyo";
+  const theme = AREA_CONFIG.STYLES;
 
   return c.html(html`
     <!DOCTYPE html>
     <html lang="ja">
     <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-      <title>Master Sync Final - ALETHEIA</title>
-      ${AreaStyles(CONFIG.STYLES)}
+      <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0">
+      <title>Drilldown Test - ALETHEIA</title>
+      <style>
+        #area-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 1000; transform: translateX(100%); transition: transform 0.2s ease; display: flex; flex-direction: column; visibility: hidden; font-family: sans-serif; }
+        #area-overlay.is-open { transform: translateX(0); visibility: visible; }
+        .nav-header { height: 54px; display: flex; align-items: center; justify-content: space-between; padding: 0 8px; border-bottom: 0.5px solid ${theme.BORDER_GRAY}; }
+        .back-btn { min-width: 48px; height: 48px; color: ${theme.PRIMARY_BLUE}; font-size: 24px; border: none; background: none; cursor: pointer; }
+        .header-title { font-weight: 600; font-size: 17px; }
+        .menu-list { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .list-item { padding: 14px 16px; border-bottom: 0.5px solid ${theme.BORDER_GRAY}; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .list-item:active { background: #f2f2f7; }
+        .layer-slide-in { animation: areaSlideIn 0.2s forwards; }
+        @keyframes areaSlideIn { from { transform: translateX(15%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        body.area-open { overflow: hidden; }
+      </style>
     </head>
-    <body style="background: #f2f2f7; font-family: sans-serif; padding: 20px;">
-      
-      <div style="display: flex; flex-direction: column; gap: 15px; margin-top: 50px;">
-        <button onclick="openAreaSelect()" style="padding: 16px; border-radius: 8px; border: 1px solid #ccc;">
-          パターンA：初期値なし
-        </button>
+    <body style="background:#f2f2f7; padding:20px;">
 
-        <button onclick="openAreaSelect('${detectedId}')" style="padding: 16px; border-radius: 8px; border: 1px solid #ccc; background: white;">
-          パターンB：現在地解決 (${detectedId})
+      <div style="display:flex; flex-direction:column; gap:10px; margin-top:40px;">
+        <button onclick="openAreaSelect()" style="padding:16px; border-radius:12px; border:none; background:white; font-weight:bold; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+          パターンA：現在地なし
+        </button>
+        <button onclick="openAreaSelect('${detectedId}')" style="padding:16px; border-radius:12px; border:none; background:white; font-weight:bold; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+          パターンB：現在地あり (${detectedId})
         </button>
       </div>
 
-      ${AreaOverlayUI(SEARCH_MASTER.region.title)}
-      ${AreaScripts(level1Data, CONFIG.STYLES)}
+      <div id="area-overlay">
+        <div class="nav-header">
+          <button class="back-btn" id="back-action">×</button>
+          <div class="header-title" id="header-title">エリアを選択</div>
+          <div style="width:48px"></div>
+        </div>
+        <div class="menu-list" id="area-content"></div>
+      </div>
 
+      <script>
+        (function() {
+          const SEARCH_OPTIONS = ${raw(JSON.stringify(SEARCH_MASTER.region.options))};
+          const PREF_MASTER = ${raw(JSON.stringify(PREFECTURE_MASTER))};
+          const overlay = document.getElementById('area-overlay');
+          const content = document.getElementById('area-content');
+          const title = document.getElementById('header-title');
+          const backBtn = document.getElementById('back-action');
+          let stack = [];
+
+          // 1. 初期表示（Level 1: 地方）
+          const buildLevel1 = () => {
+            return Object.entries(SEARCH_OPTIONS)
+              .filter(([label]) => label !== "${UI_TEXT.ALL_COUNTRY}")
+              .map(([label]) => \`
+                <div class="list-item" onclick="goNextLevel('\${label}', 'region')">
+                  <span>\${label}</span><span>＞</span>
+                </div>
+              \`).join('');
+          };
+
+          window.openAreaSelect = function(key = null) {
+            location.hash = 'area';
+            overlay.classList.add('is-open');
+            document.body.classList.add('area-open');
+            
+            stack = [{ html: buildLevel1(), title: "エリアを選択" }];
+            
+            if (key && PREF_MASTER[key]) {
+              // 現在地がある場合は自動で1段階潜る
+              goNextLevel(PREF_MASTER[key], 'prefecture', true);
+            } else {
+              render();
+            }
+          };
+
+          // 2. 階層移動ロジック (本番のアルゴリズムを注入)
+          window.goNextLevel = async function(label, currentType, isAuto = false) {
+            if (currentType === 'region') {
+              // Level 2: 都道府県リストを表示
+              const prefs = SEARCH_OPTIONS[label].sub || [];
+              const html = prefs.map(p => {
+                const pName = (typeof p === 'string') ? p : p.label;
+                return \`
+                  <div class="list-item" onclick="goNextLevel('\${pName}', 'prefecture')">
+                    <span>\${pName}</span><span>＞</span>
+                  </div>
+                \`;
+              }).join('');
+              stack.push({ html, title: label });
+            } 
+            else if (currentType === 'prefecture') {
+              // Level 3: 市区町村をDBから取得
+              content.innerHTML = '<div style="padding:40px; text-align:center;">読み込み中...</div>';
+              
+              try {
+                // 相対パスでAPIを叩く
+                const res = await fetch(\`./api/cities/\${encodeURIComponent(label)}\`).then(r => r.json());
+                
+                const cityHtml = \`<div class="list-item" onclick="finalize('\${label} 全体')"><b>\${label} 全体</b></div>\` + 
+                  (res.data.length > 0 ? res.data.map(c => \`
+                    <div class="list-item" onclick="finalize('\${label} \${c.name}')">
+                      <span>\${c.name}</span><span style="color:#8e8e93; font-size:14px;">\${c.count}</span>
+                    </div>
+                  \`).join('') : '<div class="list-item" style="color:#ccc">店舗データがありません</div>');
+                
+                const nextState = { html: cityHtml, title: label };
+                if (isAuto) stack.push(nextState); else stack.push(nextState); 
+              } catch (e) {
+                stack.push({ html: '<div class="list-item">取得に失敗しました: ' + e + '</div>', title: label });
+              }
+            }
+            render();
+          };
+
+          function render() {
+            const curr = stack[stack.length - 1];
+            if (!curr) return;
+            content.innerHTML = curr.html;
+            title.innerText = curr.title;
+            backBtn.innerText = stack.length > 1 ? "＜" : "×";
+            
+            // アニメーションの再トリガー
+            content.classList.remove('layer-slide-in');
+            void content.offsetWidth; 
+            content.classList.add('layer-slide-in');
+          }
+
+          window.finalize = (val) => { 
+            alert("選択完了: " + val); 
+            history.back(); 
+          };
+
+          backBtn.onclick = (e) => {
+            e.stopPropagation();
+            stack.length > 1 ? (stack.pop(), render()) : history.back();
+          };
+
+          window.addEventListener('popstate', () => {
+            if (!location.hash.includes('area')) {
+              overlay.classList.remove('is-open');
+              document.body.classList.remove('area-open');
+            }
+          });
+        })();
+      </script>
     </body>
     </html>
   `);
