@@ -1,6 +1,11 @@
 /**
  * 検索画面のフロントエンドロジック（JavaScript本体）
  * 📁 File Path: src/components/SearchScripts.ts
+ * * 【主な役割】
+ * 1. エリア・カテゴリの多階層ドリルダウンメニューの動的生成と制御。
+ * 2. API（/api/area-stats）から取得した統計データを既存の階層構造へ動的に注入。
+ * 3. 選択値の隠しフォームへの反映、フィルターチップ表示、およびHTMXによる自動検索。
+ * 4. メニューの開閉管理、再帰的な階層展開、およびブラウザ状態とのUI同期。
  */
 
 export const getSearchScripts = (masterData: any, uiText: any, prefMap: any) => `
